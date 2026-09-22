@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+  <div class="auth-page">
+    <section class="auth-visual">
+      <div class="brand"><i class="fas fa-vault"></i> MicroVault</div>
+      <h1>Business-ready personal finance control</h1>
+      <p>Track savings, budgets, goals, and spending with role-based access for members, admins, and super administrators.</p>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-card">
+        <h2>Sign in</h2>
+        <p class="subtitle">Access your MicroVault workspace securely</p>
+
+        <form id="loginForm" novalidate>
+          <div class="auth-field">
+            <label for="email">Email address</label>
+            <input type="email" id="email" placeholder="name@company.com" autocomplete="username" />
+            <span class="field-error" id="emailError"></span>
+          </div>
+
+          <div class="auth-field">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" />
+            <button type="button" class="toggle-pass" id="togglePass" aria-label="Show password"><i class="fas fa-eye"></i></button>
+            <span class="field-error" id="passwordError"></span>
+          </div>
+
+          <div class="auth-links">
+            <a href="forgot-password.html">Forgot password?</a>
+            <a href="landingPage.html">Back to home</a>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width:100%">Login</button>
+        </form>
+
+        <!-- <div class="demo-hint">
+          <strong>Super Admin demo:</strong><br />
+          Email: supermicrovault@microvault.com<br />
+          Password: SuperAdmin@123
+        </div> -->
+
+        <p class="bottom-text">Don't have an account? <a href="register.html">Register</a></p>
+      </div>
+    </section>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script>
+    MV.ensureSeed();
+
+    const emailEl = document.getElementById("email");
+    const passEl = document.getElementById("password");
+
+    function showErr(id, msg) {
+      const el = document.getElementById(id + "Error");
+      const input = document.getElementById(id);
+      el.textContent = msg || "";
+      el.style.display = msg ? "block" : "none";
+      input.classList.toggle("input-error", !!msg);
+      input.classList.toggle("input-success", !msg && input.value);
+    }
+
+    document.getElementById("togglePass").addEventListener("click", function () {
+      const show = passEl.type === "password";
+      passEl.type = show ? "text" : "password";
+      this.innerHTML = show ? '<i class="fas fa-eye-slash"></i>' : '<i class="fas fa-eye"></i>';
+    });
+    // keep eye aligned
+    passEl.style.paddingRight = "42px";
+
+    emailEl.addEventListener("input", function () {
+      showErr("email", MV.Validators.email(this.value.trim()));
+    });
+
+    passEl.addEventListener("input", function () {
+      if (!this.value) showErr("password", "Password is required");
+      else if (this.value.length < 8) showErr("password", "Password must be at least 8 characters");
+      else showErr("password", "");
+    });
+
+    document.getElementById("loginForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const email = emailEl.value.trim();
+      const password = passEl.value;
+      const e1 = MV.Validators.email(email);
+      const e2 = !password ? "Password is required" : password.length < 8 ? "Password must be at least 8 characters" : "";
+      showErr("email", e1);
+      showErr("password", e2);
+      if (e1 || e2) return;
+
+      const result = await MV.login(email, password);
+      if (!result.ok) {
+        showErr("password", result.message);
+        return;
+      }
+      try { await MV.bootstrap(); } catch (err) { console.error(err); }
+
+      const role = result.user.role;
+      if (role === MV.ROLES.SUPERADMIN || role === MV.ROLES.ADMIN) {
+        window.location.href = "../pages/" + MV.getHomePage(role);
+      } else {
+        const finance = MV.getFinance(result.user.id);
+        if (finance) {
+          window.location.href = "../pages/dashboard.html";
+        } else if (MV.isSetupSkipped(result.user.id)) {
+          window.location.href = "../pages/dashboard.html";
+        } else {
+          window.location.href = "../pages/personal-financial-setup.html";
+        }
+      }
+    });
+  </script>
+</body>
+</html>

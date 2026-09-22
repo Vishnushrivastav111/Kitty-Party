@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Personal Financial Setup | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/personal-financial-setup.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+  <style>
+    body {
+      background: linear-gradient(135deg, #0b3a5c, #0d9488) !important;
+      font-family: var(--font);
+    }
+    .container {
+      width: min(760px, 100%);
+      animation: fadeUp 0.55s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .check-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px 22px;
+      margin: 10px 0 16px;
+    }
+    .check-row label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+      margin: 0;
+    }
+    .check-row input { width: auto; }
+    .field-error { display: none; color: #dc3545; font-size: 12px; margin-top: 4px; }
+    .setup-brand {
+      display: flex; align-items: center; gap: 10px; justify-content: center;
+      color: #0b3a5c; font-weight: 800; font-size: 22px; margin-bottom: 6px;
+    }
+    #loanDetails, #goalSection, #emiSection, #purchaseSection { display: none; }
+    #loanDetails.show, #goalSection.show, #emiSection.show, #purchaseSection.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="setup-brand"><i class="fas fa-vault"></i> MicroVault</div>
+    <h2>Personal Financial Setup</h2>
+    <p class="subtitle">Complete your profile — all previous fields, dropdowns, and checkboxes are included</p>
+
+    <form id="setupForm" novalidate>
+
+      <!-- INCOME -->
+      <h3>1. Income Details</h3>
+      <div class="form-group">
+        <label for="incomeSource">Income Source</label>
+        <select id="incomeSource">
+          <option value="">Select income source</option>
+          <option>Salary</option>
+          <option>Business</option>
+          <option>Freelance</option>
+          <option>Investments</option>
+          <option>Other</option>
+        </select>
+        <span class="field-error" id="incomeSourceError"></span>
+      </div>
+      <div class="form-group">
+        <label for="monthlyIncome">Monthly Income (₹)</label>
+        <input type="number" id="monthlyIncome" min="0" placeholder="Enter monthly income" />
+        <span class="field-error" id="monthlyIncomeError"></span>
+      </div>
+      <div class="form-group">
+        <label for="payCycle">Pay Cycle</label>
+        <select id="payCycle">
+          <option value="">Select pay cycle</option>
+          <option>Monthly</option>
+          <option>Bi-weekly</option>
+          <option>Weekly</option>
+          <option>Irregular</option>
+        </select>
+        <span class="field-error" id="payCycleError"></span>
+      </div>
+
+      <!-- EXPENSES -->
+      <h3>2. Monthly Expenses</h3>
+      <div class="form-group">
+        <label for="monthlyExpenses">Total Monthly Expenses (₹)</label>
+        <input type="number" id="monthlyExpenses" min="0" placeholder="Enter total expenses" />
+        <span class="field-error" id="monthlyExpensesError"></span>
+      </div>
+      <label>Expense Categories (select all that apply)</label>
+      <div class="check-row" id="expenseCats">
+        <label><input type="checkbox" name="expenseCat" value="Rent/Housing" /> Rent / Housing</label>
+        <label><input type="checkbox" name="expenseCat" value="Food" /> Food</label>
+        <label><input type="checkbox" name="expenseCat" value="Transport" /> Transport</label>
+        <label><input type="checkbox" name="expenseCat" value="Utilities" /> Utilities</label>
+        <label><input type="checkbox" name="expenseCat" value="Healthcare" /> Healthcare</label>
+        <label><input type="checkbox" name="expenseCat" value="Entertainment" /> Entertainment</label>
+        <label><input type="checkbox" name="expenseCat" value="Education" /> Education</label>
+        <label><input type="checkbox" name="expenseCat" value="Shopping" /> Shopping</label>
+        <label><input type="checkbox" name="expenseCat" value="Other" /> Other</label>
+      </div>
+      <span class="field-error" id="expenseCatsError"></span>
+
+      <!-- LOANS -->
+      <h3>3. Loans / EMI</h3>
+      <div class="radio-group">
+        <span style="font-weight:600;margin-right:8px">Do you have any loans?</span>
+        <label><input type="radio" name="hasLoan" value="yes" /> Yes</label>
+        <label><input type="radio" name="hasLoan" value="no" checked /> No</label>
+      </div>
+      <div id="loanDetails">
+        <div class="form-group">
+          <label for="loanType">Loan Type</label>
+          <select id="loanType">
+            <option value="">Select loan type</option>
+            <option>Home Loan</option>
+            <option>Car Loan</option>
+            <option>Personal Loan</option>
+            <option>Education Loan</option>
+            <option>Credit Card</option>
+            <option>Other</option>
+          </select>
+          <span class="field-error" id="loanTypeError"></span>
+        </div>
+        <div class="form-group">
+          <label for="loanAmount">Outstanding Loan Amount (₹)</label>
+          <input type="number" id="loanAmount" min="0" value="0" />
+          <span class="field-error" id="loanAmountError"></span>
+        </div>
+        <div class="radio-group">
+          <span style="font-weight:600;margin-right:8px">Paying EMI currently?</span>
+          <label><input type="radio" name="hasEmi" value="yes" /> Yes</label>
+          <label><input type="radio" name="hasEmi" value="no" checked /> No</label>
+        </div>
+        <div id="emiSection">
+          <div class="form-group">
+            <label for="loansEmi">Monthly EMI (₹)</label>
+            <input type="number" id="loansEmi" min="0" value="0" />
+            <span class="field-error" id="loansEmiError"></span>
+          </div>
+          <div class="form-group">
+            <label for="emiStartDate">EMI Start Date</label>
+            <input type="date" id="emiStartDate" />
+            <span class="field-error" id="emiStartDateError"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SAVINGS & INVESTMENTS -->
+      <h3>4. Savings &amp; Investments</h3>
+      <div class="form-group">
+        <label for="currentSavings">Current Savings (₹)</label>
+        <input type="number" id="currentSavings" min="0" />
+        <span class="field-error" id="currentSavingsError"></span>
+      </div>
+      <div class="form-group">
+        <label for="savingsType">Primary Savings Type</label>
+        <select id="savingsType">
+          <option value="">Select</option>
+          <option>Bank Savings</option>
+          <option>Fixed Deposit</option>
+          <option>Recurring Deposit</option>
+          <option>Cash</option>
+          <option>Other</option>
+        </select>
+        <span class="field-error" id="savingsTypeError"></span>
+      </div>
+      <div class="form-group">
+        <label for="investments">Total Investments (₹)</label>
+        <input type="number" id="investments" min="0" value="0" />
+        <span class="field-error" id="investmentsError"></span>
+      </div>
+      <label>Investment Types (select all that apply)</label>
+      <div class="check-row">
+        <label><input type="checkbox" name="investType" value="Mutual Funds" /> Mutual Funds</label>
+        <label><input type="checkbox" name="investType" value="Stocks" /> Stocks</label>
+        <label><input type="checkbox" name="investType" value="Gold" /> Gold</label>
+        <label><input type="checkbox" name="investType" value="PPF/EPF" /> PPF / EPF</label>
+        <label><input type="checkbox" name="investType" value="Real Estate" /> Real Estate</label>
+        <label><input type="checkbox" name="investType" value="Crypto" /> Crypto</label>
+        <label><input type="checkbox" name="investType" value="Other" /> Other</label>
+      </div>
+
+      <!-- BUDGET -->
+      <h3>5. Monthly Budget</h3>
+      <div class="form-group">
+        <label for="monthlyBudget">Monthly Budget Limit (₹)</label>
+        <input type="number" id="monthlyBudget" min="0" />
+        <span class="field-error" id="monthlyBudgetError"></span>
+      </div>
+      <div class="form-group">
+        <label for="budgetStyle">Budget Style</label>
+        <select id="budgetStyle">
+          <option value="">Select style</option>
+          <option>50/30/20 Rule</option>
+          <option>Zero-based</option>
+          <option>Envelope</option>
+          <option>Custom</option>
+        </select>
+        <span class="field-error" id="budgetStyleError"></span>
+      </div>
+
+      <!-- GOALS -->
+      <h3>6. Financial Goal</h3>
+      <div class="radio-group">
+        <span style="font-weight:600;margin-right:8px">Do you want to set a goal now?</span>
+        <label><input type="radio" name="hasGoal" value="yes" /> Yes</label>
+        <label><input type="radio" name="hasGoal" value="no" checked /> No</label>
+      </div>
+      <div id="goalSection">
+        <div class="form-group">
+          <label for="primaryGoal">Goal Title</label>
+          <input type="text" id="primaryGoal" placeholder="e.g. Emergency fund" />
+          <span class="field-error" id="primaryGoalError"></span>
+        </div>
+        <div class="form-group">
+          <label for="goalCategory">Goal Category</label>
+          <select id="goalCategory">
+            <option value="">Select</option>
+            <option>Emergency</option>
+            <option>Travel</option>
+            <option>Education</option>
+            <option>Home</option>
+            <option>Personal</option>
+            <option>Other</option>
+          </select>
+          <span class="field-error" id="goalCategoryError"></span>
+        </div>
+        <div class="form-group">
+          <label for="goalTarget">Target Amount (₹)</label>
+          <input type="number" id="goalTarget" min="0" />
+          <span class="field-error" id="goalTargetError"></span>
+        </div>
+        <div class="form-group">
+          <label for="goalDate">Goal Start / As-of Date</label>
+          <input type="date" id="goalDate" />
+          <span class="field-error" id="goalDateError"></span>
+        </div>
+      </div>
+
+      <!-- BIG PURCHASES -->
+      <h3>7. Planned Big Purchases</h3>
+      <div class="radio-group">
+        <span style="font-weight:600;margin-right:8px">Planning a big purchase?</span>
+        <label><input type="radio" name="hasPurchase" value="yes" /> Yes</label>
+        <label><input type="radio" name="hasPurchase" value="no" checked /> No</label>
+      </div>
+      <div id="purchaseSection">
+        <div class="form-group">
+          <label for="purchaseItem">Purchase Item</label>
+          <input type="text" id="purchaseItem" placeholder="e.g. Laptop, Scooter" />
+          <span class="field-error" id="purchaseItemError"></span>
+        </div>
+        <div class="form-group">
+          <label for="purchaseAmount">Estimated Cost (₹)</label>
+          <input type="number" id="purchaseAmount" min="0" />
+          <span class="field-error" id="purchaseAmountError"></span>
+        </div>
+        <div class="form-group">
+          <label for="purchasePriority">Priority</label>
+          <select id="purchasePriority">
+            <option value="">Select</option>
+            <option>Need</option>
+            <option>Want</option>
+            <option>Investment</option>
+          </select>
+          <span class="field-error" id="purchasePriorityError"></span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="setupDate">Profile As-of Date</label>
+        <input type="date" id="setupDate" />
+        <span class="field-error" id="setupDateError"></span>
+      </div>
+
+      <div class="summary-box">
+        <div><span>Estimated surplus</span><strong id="sumSurplus">₹0</strong></div>
+        <div><span>Income</span><strong id="sumIncome">₹0</strong></div>
+        <div><span>Expenses + EMI</span><strong id="sumOut">₹0</strong></div>
+      </div>
+
+      <label class="check-row" style="margin-bottom:8px">
+        <input type="checkbox" id="confirmAccurate" />
+        I confirm the financial information above is accurate
+      </label>
+      <span class="field-error" id="confirmAccurateError"></span>
+
+      <button type="submit" class="btn">Save &amp; Continue to Dashboard</button>
+      <button type="button" class="btn" id="skipBtn" style="background:#64748b;margin-top:10px">Skip for now</button>
+    </form>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script>
+    const user = MV.requireAuth({ loginUrl: "../html/login.html" });
+    if (!user) throw new Error("auth");
+    if (user.role === MV.ROLES.ADMIN || user.role === MV.ROLES.SUPERADMIN) {
+      window.location.href = MV.getHomePage(user.role);
+    }
+
+    document.getElementById("setupDate").value = MV.todayISO();
+    document.getElementById("goalDate").value = MV.todayISO();
+    document.getElementById("emiStartDate").value = MV.todayISO();
+    MV.bindMaxDate();
+
+    function toggle(name, sectionId, yesValue) {
+      document.querySelectorAll('input[name="' + name + '"]').forEach((r) => {
+        r.addEventListener("change", () => {
+          document.getElementById(sectionId).classList.toggle("show", r.checked && r.value === yesValue);
+        });
+      });
+    }
+    toggle("hasLoan", "loanDetails", "yes");
+    toggle("hasEmi", "emiSection", "yes");
+    toggle("hasGoal", "goalSection", "yes");
+    toggle("hasPurchase", "purchaseSection", "yes");
+
+    function money(n) { return MV.formatINR(n); }
+    function refreshSummary() {
+      const income = Number(document.getElementById("monthlyIncome").value) || 0;
+      const exp = Number(document.getElementById("monthlyExpenses").value) || 0;
+      const emi = Number(document.getElementById("loansEmi").value) || 0;
+      document.getElementById("sumIncome").textContent = money(income);
+      document.getElementById("sumOut").textContent = money(exp + emi);
+      document.getElementById("sumSurplus").textContent = money(income - exp - emi);
+    }
+    ["monthlyIncome", "monthlyExpenses", "loansEmi"].forEach((id) => {
+      document.getElementById(id).addEventListener("input", refreshSummary);
+    });
+
+    function checkedValues(name) {
+      return Array.from(document.querySelectorAll('input[name="' + name + '"]:checked')).map((c) => c.value);
+    }
+
+    function showErr(id, msg) {
+      const el = document.getElementById(id + "Error");
+      const input = document.getElementById(id);
+      if (el) { el.textContent = msg || ""; el.style.display = msg ? "block" : "none"; }
+      if (input) input.classList.toggle("invalid", !!msg);
+    }
+
+    const existing = MV.getFinance();
+    if (existing) {
+      Object.keys(existing).forEach((k) => {
+        const el = document.getElementById(k);
+        if (el && existing[k] !== undefined && existing[k] !== null && el.type !== "checkbox" && el.type !== "radio") {
+          el.value = existing[k];
+        }
+      });
+      if (existing.expenseCategories) {
+        existing.expenseCategories.forEach((v) => {
+          const c = document.querySelector('input[name="expenseCat"][value="' + v + '"]');
+          if (c) c.checked = true;
+        });
+      }
+      if (existing.investmentTypes) {
+        existing.investmentTypes.forEach((v) => {
+          const c = document.querySelector('input[name="investType"][value="' + v + '"]');
+          if (c) c.checked = true;
+        });
+      }
+      if (existing.hasLoan === "yes") {
+        document.querySelector('input[name="hasLoan"][value="yes"]').checked = true;
+        document.getElementById("loanDetails").classList.add("show");
+      }
+      if (existing.hasEmi === "yes") {
+        document.querySelector('input[name="hasEmi"][value="yes"]').checked = true;
+        document.getElementById("emiSection").classList.add("show");
+      }
+      if (existing.hasGoal === "yes") {
+        document.querySelector('input[name="hasGoal"][value="yes"]').checked = true;
+        document.getElementById("goalSection").classList.add("show");
+      }
+      if (existing.hasPurchase === "yes") {
+        document.querySelector('input[name="hasPurchase"][value="yes"]').checked = true;
+        document.getElementById("purchaseSection").classList.add("show");
+      }
+      refreshSummary();
+    }
+
+    document.getElementById("skipBtn").onclick = async () => {
+      await MV.markSetupSkipped(user.id);
+      window.location.href = "dashboard.html";
+    };
+
+    document.getElementById("setupForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      let ok = true;
+      const reqSelect = ["incomeSource", "payCycle", "savingsType", "budgetStyle"];
+      const reqAmount = ["monthlyIncome", "monthlyExpenses", "currentSavings", "monthlyBudget"];
+      reqSelect.forEach((id) => {
+        const err = MV.Validators.required(document.getElementById(id).value, id);
+        showErr(id, err ? "This field is required" : "");
+        if (err) ok = false;
+      });
+      reqAmount.forEach((id) => {
+        const err = MV.Validators.amount(document.getElementById(id).value);
+        showErr(id, err);
+        if (err) ok = false;
+      });
+      const cats = checkedValues("expenseCat");
+      const catErr = cats.length ? "" : "Select at least one expense category";
+      document.getElementById("expenseCatsError").textContent = catErr;
+      document.getElementById("expenseCatsError").style.display = catErr ? "block" : "none";
+      if (catErr) ok = false;
+
+      const hasLoan = document.querySelector('input[name="hasLoan"]:checked').value;
+      const hasEmi = document.querySelector('input[name="hasEmi"]:checked').value;
+      const hasGoal = document.querySelector('input[name="hasGoal"]:checked').value;
+      const hasPurchase = document.querySelector('input[name="hasPurchase"]:checked').value;
+
+      if (hasLoan === "yes") {
+        const lt = MV.Validators.required(document.getElementById("loanType").value, "Loan type");
+        showErr("loanType", lt ? "Select loan type" : "");
+        if (lt) ok = false;
+        const la = MV.Validators.amount(document.getElementById("loanAmount").value, "Loan amount");
+        showErr("loanAmount", la);
+        if (la) ok = false;
+      }
+      if (hasEmi === "yes") {
+        const em = MV.Validators.amount(document.getElementById("loansEmi").value, "EMI");
+        showErr("loansEmi", em);
+        if (em) ok = false;
+        const ed = MV.Validators.dateNotFuture(document.getElementById("emiStartDate").value, "EMI start date");
+        showErr("emiStartDate", ed);
+        if (ed) ok = false;
+      }
+      if (hasGoal === "yes") {
+        showErr("primaryGoal", MV.Validators.required(document.getElementById("primaryGoal").value, "Goal title"));
+        showErr("goalCategory", document.getElementById("goalCategory").value ? "" : "Select category");
+        showErr("goalTarget", MV.Validators.amount(document.getElementById("goalTarget").value, "Target"));
+        showErr("goalDate", MV.Validators.dateNotFuture(document.getElementById("goalDate").value, "Goal date"));
+        if (!document.getElementById("primaryGoal").value.trim() || !document.getElementById("goalCategory").value ||
+            MV.Validators.amount(document.getElementById("goalTarget").value) ||
+            MV.Validators.dateNotFuture(document.getElementById("goalDate").value)) ok = false;
+      }
+      if (hasPurchase === "yes") {
+        showErr("purchaseItem", MV.Validators.required(document.getElementById("purchaseItem").value, "Item"));
+        showErr("purchaseAmount", MV.Validators.amount(document.getElementById("purchaseAmount").value, "Cost"));
+        showErr("purchasePriority", document.getElementById("purchasePriority").value ? "" : "Select priority");
+        if (!document.getElementById("purchaseItem").value.trim() ||
+            MV.Validators.amount(document.getElementById("purchaseAmount").value) ||
+            !document.getElementById("purchasePriority").value) ok = false;
+      }
+      const dateErr = MV.Validators.dateNotFuture(document.getElementById("setupDate").value, "As-of date");
+      showErr("setupDate", dateErr);
+      if (dateErr) ok = false;
+      if (!document.getElementById("confirmAccurate").checked) {
+        document.getElementById("confirmAccurateError").textContent = "Please confirm accuracy";
+        document.getElementById("confirmAccurateError").style.display = "block";
+        ok = false;
+      } else {
+        document.getElementById("confirmAccurateError").style.display = "none";
+      }
+      if (!ok) return;
+
+      const data = {
+        incomeSource: document.getElementById("incomeSource").value,
+        monthlyIncome: Number(document.getElementById("monthlyIncome").value),
+        payCycle: document.getElementById("payCycle").value,
+        monthlyExpenses: Number(document.getElementById("monthlyExpenses").value),
+        expenseCategories: cats,
+        hasLoan, hasEmi, hasGoal, hasPurchase,
+        loanType: document.getElementById("loanType").value,
+        loanAmount: Number(document.getElementById("loanAmount").value) || 0,
+        loansEmi: Number(document.getElementById("loansEmi").value) || 0,
+        emiStartDate: document.getElementById("emiStartDate").value,
+        currentSavings: Number(document.getElementById("currentSavings").value),
+        savingsType: document.getElementById("savingsType").value,
+        investments: Number(document.getElementById("investments").value) || 0,
+        investmentTypes: checkedValues("investType"),
+        monthlyBudget: Number(document.getElementById("monthlyBudget").value),
+        budgetStyle: document.getElementById("budgetStyle").value,
+        primaryGoal: document.getElementById("primaryGoal").value.trim(),
+        goalCategory: document.getElementById("goalCategory").value,
+        goalTarget: Number(document.getElementById("goalTarget").value) || 0,
+        goalDate: document.getElementById("goalDate").value,
+        purchaseItem: document.getElementById("purchaseItem").value.trim(),
+        purchaseAmount: Number(document.getElementById("purchaseAmount").value) || 0,
+        purchasePriority: document.getElementById("purchasePriority").value,
+        setupDate: document.getElementById("setupDate").value,
+      };
+      await MV.setFinance(data);
+      MV.clearSetupSkipped(user.id);
+      MV.ensureDemoData(user.id);
+
+      if (data.currentSavings > 0 && !MV.listFor(MV.KEYS.savings).some((s) => s.title === "Opening balance")) {
+        await MV.addItem(MV.KEYS.savings, {
+          title: "Opening balance", amount: data.currentSavings, category: "Opening",
+          date: data.setupDate, note: "From financial setup",
+        });
+      }
+      if (data.hasGoal === "yes" && data.primaryGoal) {
+        await MV.addItem(MV.KEYS.goals, {
+          title: data.primaryGoal, target: data.goalTarget || 50000, saved: 0,
+          deadline: data.goalDate || data.setupDate, status: "active",
+          category: data.goalCategory || "Personal",
+        });
+      }
+      if (data.hasPurchase === "yes" && data.purchaseItem) {
+        await MV.addItem(MV.KEYS.affordChecks, {
+          itemName: data.purchaseItem, amount: data.purchaseAmount,
+          available: Math.max(0, data.monthlyIncome - data.monthlyExpenses),
+          verdict: "From setup — review in Affordability", level: "warning",
+          priority: data.purchasePriority || "Want", date: data.setupDate,
+        });
+      }
+      MV.pushNotification("Setup complete", "Your full financial profile has been saved.", "success");
+      window.location.href = "dashboard.html";
+    });
+  </script>
+</body>
+</html>

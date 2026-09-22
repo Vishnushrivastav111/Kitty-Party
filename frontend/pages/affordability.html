@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Affordability | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header">
+        <h1>Affordability</h1>
+        <p>Check whether a purchase fits your income, expenses, and savings</p>
+      </div>
+
+      <div class="panel">
+        <h2 style="margin-bottom:14px;color:var(--navy)">Can I afford this?</h2>
+        <form id="affordForm" novalidate>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="itemName">Item / purchase name</label>
+              <input id="itemName" placeholder="e.g. Laptop, scooter, vacation" />
+              <span class="field-error" id="itemNameError"></span>
+            </div>
+            <div class="form-group">
+              <label for="amount">Estimated cost (₹)</label>
+              <input type="number" id="amount" min="1" />
+              <span class="field-error" id="amountError"></span>
+            </div>
+            <div class="form-group">
+              <label for="checkDate">Check date</label>
+              <input type="date" id="checkDate" />
+              <span class="field-error" id="checkDateError"></span>
+            </div>
+            <div class="form-group">
+              <label for="priority">Priority</label>
+              <select id="priority"><option>Need</option><option>Want</option><option>Investment</option></select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-calculator"></i> Check affordability</button>
+          </div>
+        </form>
+        <div id="result" style="margin-top:16px"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Previous checks</h2>
+          <button class="btn btn-danger btn-sm" id="clearAll"><i class="fas fa-trash"></i> Clear all</button>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="Search item..." />
+          <select id="filterLevel">
+            <option value="">All results</option>
+            <option value="success">Comfortable</option>
+            <option value="warning">Caution</option>
+            <option value="danger">Not recommended</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Item</th><th>Cost</th><th>Available</th><th>Verdict</th><th>Priority</th><th>Actions</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({ page: "affordability.html", title: "Affordability" });
+    if (!user) throw new Error("auth");
+    document.getElementById("checkDate").value = MV.todayISO();
+    MV.bindMaxDate();
+
+    const table = MV.createTableController({
+      perPage: 5,
+      getData: () => MV.listFor(MV.KEYS.affordChecks),
+      searchKeys: ["itemName", "verdict", "priority"],
+      paginationEl: "#pagination",
+      renderRows(rows) {
+        const body = document.getElementById("tbody");
+        if (!rows.length) { body.innerHTML = '<tr><td colspan="7" class="empty-state">No checks yet</td></tr>'; return; }
+        body.innerHTML = rows.map((r) => `
+          <tr>
+            <td>${MV.formatDate(r.date)}</td>
+            <td>${r.itemName}</td>
+            <td>${MV.formatINR(r.amount)}</td>
+            <td>${MV.formatINR(r.available)}</td>
+            <td><span class="badge badge-${r.level === "success" ? "success" : r.level === "warning" ? "warning" : "danger"}">${r.verdict}</span></td>
+            <td>${r.priority}</td>
+            <td><button class="btn btn-danger btn-sm" data-del="${r.id}"><i class="fas fa-trash"></i></button></td>
+          </tr>`).join("");
+        body.querySelectorAll("[data-del]").forEach((b) =>
+          b.onclick = () => {
+            MV.confirmDelete("Are you sure you want to delete this affordability check?").then(async (ok) => {
+              if (!ok) return;
+              await MV.deleteItem(MV.KEYS.affordChecks, b.dataset.del);
+              table.render();
+            });
+          }
+        );
+      },
+    });
+    table.bindSearch("#search");
+    table.bindFilter("#filterLevel", "level");
+    table.render();
+
+    document.getElementById("affordForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const itemName = document.getElementById("itemName").value.trim();
+      const amount = document.getElementById("amount").value;
+      const checkDate = document.getElementById("checkDate").value;
+      const priority = document.getElementById("priority").value;
+      const errors = {
+        itemName: MV.Validators.required(itemName, "Item name"),
+        amount: MV.Validators.amount(amount, "Cost"),
+        checkDate: MV.Validators.dateNotFuture(checkDate, "Check date"),
+      };
+      if (!errors.amount && Number(amount) <= 0) errors.amount = "Cost must be greater than 0";
+      Object.keys(errors).forEach((k) => MV.showFieldError(k, errors[k]));
+      if (Object.values(errors).some(Boolean)) return;
+
+      const result = MV.canAfford(amount);
+      document.getElementById("result").innerHTML = `
+        <div class="alert-box ${result.level}">
+          <strong>${result.verdict}</strong><br />
+          Estimated available capacity: ${MV.formatINR(result.available)} · Requested: ${MV.formatINR(result.amount)}<br />
+          Income ${MV.formatINR(result.income)} · Expenses ${MV.formatINR(result.expenses)} · Savings ${MV.formatINR(result.totalSavings)}
+        </div>`;
+
+      await MV.addItem(MV.KEYS.affordChecks, {
+        itemName,
+        amount: result.amount,
+        available: Math.round(result.available),
+        verdict: result.verdict,
+        level: result.level,
+        priority,
+        date: checkDate,
+      });
+      table.render();
+    });
+
+    document.getElementById("clearAll").onclick = function () {
+      const count = MV.listFor(MV.KEYS.affordChecks).length;
+      if (!count) {
+        MV.showNotice("There are no affordability checks to clear.", "Clear All");
+        return;
+      }
+      MV.confirmDelete("Clear all " + count + " affordability check" + (count === 1 ? "" : "s") + "? This cannot be undone.").then(async (ok) => {
+        if (!ok) return;
+        await MV.saveFor(MV.KEYS.affordChecks, []);
+        table.render();
+      });
+    };
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Goals | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header">
+        <h1>Goals</h1>
+        <p>Plan targets, track progress, and update saved amounts</p>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-bar"></i> Saved vs target</h3>
+          <div class="chart-wrap"><canvas id="goalBar"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-pie"></i> Status mix</h3>
+          <div class="chart-wrap"><canvas id="goalPie"></canvas></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Goal list</h2>
+          <button class="btn btn-danger btn-sm" id="clearAll"><i class="fas fa-trash"></i> Clear all</button>
+          <button class="btn btn-primary btn-sm" id="openAdd"><i class="fas fa-plus"></i> Add goal</button>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="Search goals..." />
+          <select id="filterStatus">
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="paused">Paused</option>
+          </select>
+          <select id="filterCategory">
+            <option value="">All categories</option>
+            <option>Personal</option><option>Emergency</option><option>Travel</option>
+            <option>Education</option><option>Home</option><option>Other</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Title</th><th>Category</th><th>Target</th><th>Saved</th><th>Progress</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <h3 id="modalTitle">Add goal</h3>
+      <form id="goalForm" novalidate>
+        <input type="hidden" id="editId" />
+        <div class="form-grid">
+          <div class="form-group"><label for="title">Title</label><input id="title" /><span class="field-error" id="titleError"></span></div>
+          <div class="form-group"><label for="category">Category</label>
+            <select id="category"><option value="">Select</option><option>Personal</option><option>Emergency</option><option>Travel</option><option>Education</option><option>Home</option><option>Other</option></select>
+            <span class="field-error" id="categoryError"></span>
+          </div>
+          <div class="form-group"><label for="target">Target (₹)</label><input type="number" id="target" min="1" /><span class="field-error" id="targetError"></span></div>
+          <div class="form-group"><label for="saved">Saved (₹)</label><input type="number" id="saved" min="0" value="0" /><span class="field-error" id="savedError"></span></div>
+          <div class="form-group"><label for="deadline">Deadline</label><input type="date" id="deadline" /><span class="field-error" id="deadlineError"></span></div>
+          <div class="form-group"><label for="status">Status</label>
+            <select id="status"><option value="active">Active</option><option value="paused">Paused</option><option value="completed">Completed</option></select>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="closeModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({ page: "goal.html", title: "Goals" });
+    if (!user) throw new Error("auth");
+    const modal = document.getElementById("modal");
+
+    function openModal(row) {
+      document.getElementById("modalTitle").textContent = row ? "Edit goal" : "Add goal";
+      document.getElementById("editId").value = row ? row.id : "";
+      document.getElementById("title").value = row ? row.title : "";
+      document.getElementById("category").value = row ? row.category : "";
+      document.getElementById("target").value = row ? row.target : "";
+      document.getElementById("saved").value = row ? row.saved : 0;
+      document.getElementById("deadline").value = row ? row.deadline : MV.todayISO();
+      document.getElementById("status").value = row ? row.status : "active";
+      modal.classList.add("open");
+      MV.bindMaxDate();
+    }
+    document.getElementById("openAdd").onclick = () => openModal(null);
+    document.getElementById("closeModal").onclick = () => modal.classList.remove("open");
+
+    const table = MV.createTableController({
+      perPage: 5,
+      getData: () => MV.listFor(MV.KEYS.goals),
+      searchKeys: ["title", "category", "status"],
+      paginationEl: "#pagination",
+      renderRows(rows) {
+        const body = document.getElementById("tbody");
+        if (!rows.length) {
+          body.innerHTML = '<tr><td colspan="8" class="empty-state">No goals yet</td></tr>';
+          return;
+        }
+        body.innerHTML = rows.map((g) => {
+          const pct = Math.min(100, Math.round(((Number(g.saved) || 0) / (Number(g.target) || 1)) * 100));
+          const color = pct >= 100 ? "c6" : pct >= 60 ? "c1" : pct >= 30 ? "c3" : "c5";
+          return `<tr>
+            <td>${g.title}</td><td>${g.category}</td>
+            <td>${MV.formatINR(g.target)}</td><td>${MV.formatINR(g.saved)}</td>
+            <td style="min-width:120px"><div class="progress ${color}"><span style="width:${pct}%"></span></div> ${pct}%</td>
+            <td>${MV.formatDate(g.deadline)}</td>
+            <td><span class="badge ${g.status === "completed" ? "badge-success" : g.status === "paused" ? "badge-warning" : "badge-info"}">${g.status}</span></td>
+            <td>
+              <button class="btn btn-outline btn-sm" data-edit="${g.id}"><i class="fas fa-pen"></i></button>
+              <button class="btn btn-danger btn-sm" data-del="${g.id}"><i class="fas fa-trash"></i></button>
+            </td>
+          </tr>`;
+        }).join("");
+        body.querySelectorAll("[data-edit]").forEach((b) =>
+          b.onclick = () => openModal(MV.listFor(MV.KEYS.goals).find((x) => String(x.id) === String(b.dataset.edit)))
+        );
+        body.querySelectorAll("[data-del]").forEach((b) =>
+          b.onclick = () => {
+            MV.confirmDelete("Are you sure you want to delete this goal?").then(async (ok) => {
+              if (!ok) return;
+              await MV.deleteItem(MV.KEYS.goals, b.dataset.del);
+              table.render();
+            });
+          }
+        );
+      },
+    });
+    table.bindSearch("#search");
+    table.bindFilter("#filterStatus", "status");
+    table.bindFilter("#filterCategory", "category");
+    table.render();
+
+    (function drawGoalCharts() {
+      const goals = MV.listFor(MV.KEYS.goals);
+      new Chart(document.getElementById("goalBar"), {
+        type: "bar",
+        data: {
+          labels: goals.map((g) => g.title),
+          datasets: [
+            { label: "Target", data: goals.map((g) => g.target), backgroundColor: MV.CHART_COLORS[7], borderRadius: 6 },
+            { label: "Saved", data: goals.map((g) => g.saved), backgroundColor: MV.CHART_COLORS[0], borderRadius: 6 },
+          ],
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } },
+      });
+      const statusCount = { active: 0, completed: 0, paused: 0 };
+      goals.forEach((g) => { statusCount[g.status] = (statusCount[g.status] || 0) + 1; });
+      new Chart(document.getElementById("goalPie"), {
+        type: "doughnut",
+        data: {
+          labels: Object.keys(statusCount),
+          datasets: [{ data: Object.values(statusCount), backgroundColor: [MV.CHART_COLORS[1], MV.CHART_COLORS[5], MV.CHART_COLORS[2]], borderWidth: 0 }],
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } } },
+      });
+    })();
+
+    document.getElementById("goalForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const payload = {
+        title: document.getElementById("title").value.trim(),
+        category: document.getElementById("category").value,
+        target: Number(document.getElementById("target").value),
+        saved: Number(document.getElementById("saved").value),
+        deadline: document.getElementById("deadline").value,
+        status: document.getElementById("status").value,
+      };
+      const errors = {
+        title: MV.Validators.required(payload.title, "Title"),
+        category: MV.Validators.required(payload.category, "Category"),
+        target: MV.Validators.amount(document.getElementById("target").value, "Target"),
+        saved: MV.Validators.amount(document.getElementById("saved").value, "Saved"),
+        deadline: MV.Validators.dateNotFuture(payload.deadline, "Deadline"),
+      };
+      if (!errors.target && payload.target <= 0) errors.target = "Target must be greater than 0";
+      if (!errors.saved && payload.saved > payload.target) errors.saved = "Saved cannot exceed target";
+      Object.keys(errors).forEach((k) => MV.showFieldError(k, errors[k]));
+      if (Object.values(errors).some(Boolean)) return;
+      if (payload.saved >= payload.target) payload.status = "completed";
+      const id = document.getElementById("editId").value;
+      if (id) await MV.updateItem(MV.KEYS.goals, id, payload);
+      else await MV.addItem(MV.KEYS.goals, payload);
+      modal.classList.remove("open");
+      table.render();
+    });
+
+    document.getElementById("clearAll").onclick = function () {
+      const count = MV.listFor(MV.KEYS.goals).length;
+      if (!count) {
+        MV.showNotice("There are no goals to clear.", "Clear All");
+        return;
+      }
+      MV.confirmDelete("Clear all " + count + " goal" + (count === 1 ? "" : "s") + "? This cannot be undone.").then(async (ok) => {
+        if (!ok) return;
+        await MV.saveFor(MV.KEYS.goals, []);
+        location.reload();
+      });
+    };
+  })();
+  </script>
+</body>
+</html>

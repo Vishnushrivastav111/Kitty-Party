@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header"><h1>Settings</h1><p>Profile, security, and financial setup</p></div>
+
+      <div class="panel">
+        <h2 style="margin-bottom:14px;color:var(--navy)">Profile</h2>
+        <form id="profileForm" novalidate>
+          <div class="form-grid">
+            <div class="form-group"><label for="fullName">Full name</label><input id="fullName" /><span class="field-error" id="fullNameError"></span></div>
+            <div class="form-group"><label for="email">Email</label><input type="email" id="email" /><span class="field-error" id="emailError"></span></div>
+            <div class="form-group"><label for="phone">Phone</label><input id="phone" maxlength="10" /><span class="field-error" id="phoneError"></span></div>
+          </div>
+          <div class="form-actions"><button type="submit" class="btn btn-primary">Save profile</button></div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h2 style="margin-bottom:14px;color:var(--navy)">Change password</h2>
+        <form id="passForm" novalidate>
+          <div class="form-grid">
+            <div class="form-group"><label for="currentPassword">Current password</label><input type="password" id="currentPassword" /><span class="field-error" id="currentPasswordError"></span></div>
+            <div class="form-group"><label for="newPassword">New password</label><input type="password" id="newPassword" /><span class="field-error" id="newPasswordError"></span></div>
+            <div class="form-group"><label for="confirmPassword">Confirm password</label><input type="password" id="confirmPassword" /><span class="field-error" id="confirmPasswordError"></span></div>
+          </div>
+          <div class="form-actions"><button type="submit" class="btn btn-navy">Update password</button></div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h2 style="margin-bottom:10px;color:var(--navy)">Financial setup</h2>
+        <p style="color:var(--muted);margin-bottom:12px;font-size:14px">Revisit income, expenses, and budget baselines.</p>
+        <a class="btn btn-outline" href="personal-financial-setup.html"><i class="fas fa-sliders"></i> Open financial setup</a>
+      </div>
+    </div>
+  </div>
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({ page: "settings.html", title: "Settings" });
+    if (!user) throw new Error("auth");
+    MV.bindPasswordToggles();
+
+    document.getElementById("fullName").value = user.fullName || "";
+    document.getElementById("email").value = user.email || "";
+    document.getElementById("phone").value = user.phone || "";
+
+    document.getElementById("profileForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const fullName = document.getElementById("fullName").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const phone = document.getElementById("phone").value.trim();
+      const errors = {
+        fullName: MV.Validators.name(fullName),
+        email: MV.Validators.email(email),
+        phone: MV.Validators.phone(phone),
+      };
+      Object.keys(errors).forEach((k) => MV.showFieldError(k, errors[k]));
+      if (Object.values(errors).some(Boolean)) return;
+      try {
+        const row = await MV.updateMyProfile({ fullName, email, phone });
+        alert("Profile saved");
+        MVSidebar.renderSidebar("settings.html");
+      } catch (err) {
+        MV.showFieldError("email", err.message || "Could not save profile");
+      }
+    });
+
+    document.getElementById("passForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const currentPassword = document.getElementById("currentPassword").value;
+      const newPassword = document.getElementById("newPassword").value;
+      const confirmPassword = document.getElementById("confirmPassword").value;
+      const errors = {
+        currentPassword: !currentPassword ? "Current password is required" : "",
+        newPassword: MV.Validators.password(newPassword),
+        confirmPassword: confirmPassword !== newPassword ? "Passwords do not match" : "",
+      };
+      Object.keys(errors).forEach((k) => MV.showFieldError(k, errors[k]));
+      if (Object.values(errors).some(Boolean)) return;
+      try {
+        await MV.changeMyPassword({ currentPassword, newPassword, confirmPassword });
+        document.getElementById("passForm").reset();
+        alert("Password updated");
+      } catch (err) {
+        MV.showFieldError("currentPassword", err.message || "Could not update password");
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Feedback | MicroVault Admin</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header">
+        <h1>Member feedback</h1>
+        <p>Review all user feedback, update status, and inspect change history</p>
+      </div>
+      <div class="cards" id="cards"></div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Feedback inbox</h2>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="Search by user, subject, message..." />
+          <select id="filterStatus">
+            <option value="">All statuses</option>
+            <option value="open">Open</option>
+            <option value="in-review">In review</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
+          <select id="filterCategory">
+            <option value="">All categories</option>
+            <option value="General">General</option>
+            <option value="Bug">Bug</option>
+            <option value="Feature">Feature</option>
+            <option value="UI">UI</option>
+            <option value="Other">Other</option>
+          </select>
+          <select id="filterDeleted">
+            <option value="active">Active only</option>
+            <option value="all">Include deleted</option>
+            <option value="deleted">Deleted only</option>
+          </select>
+        </div>
+        <div class="feed-stack" id="feed"></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="statusModal">
+    <div class="modal">
+      <h3>Update status</h3>
+      <form id="statusForm" novalidate>
+        <input type="hidden" id="statusId" />
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status">
+              <option value="open">Open</option>
+              <option value="in-review">In review</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="closeStatus">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="historyModal">
+    <div class="modal">
+      <h3>Feedback history</h3>
+      <p id="historyMeta" style="color:var(--muted);margin-bottom:12px"></p>
+      <ul class="timeline" id="historyBody"></ul>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="closeHistory">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="viewModal">
+    <div class="modal">
+      <h3>Feedback details</h3>
+      <div id="viewBody"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="closeView">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({
+      page: "admin-feedback.html",
+      title: "Feedback",
+      roles: [MV.ROLES.ADMIN, MV.ROLES.SUPERADMIN],
+    });
+    if (!user) throw new Error("auth");
+
+    const statusModal = document.getElementById("statusModal");
+    const historyModal = document.getElementById("historyModal");
+    const viewModal = document.getElementById("viewModal");
+    let deletedFilter = "active";
+
+    function statusBadge(status) {
+      if (status === "resolved") return "badge-success";
+      if (status === "in-review") return "badge-warning";
+      if (status === "closed") return "badge-neutral";
+      return "badge-info";
+    }
+
+    function refreshCards() {
+      const all = MV.listAllFeedback();
+      const active = all.filter((f) => !f.deletedAt);
+      const open = active.filter((f) => f.status === "open").length;
+      const review = active.filter((f) => f.status === "in-review").length;
+      const resolved = active.filter((f) => f.status === "resolved").length;
+      document.getElementById("cards").innerHTML =
+        '<div class="card"><div class="card-icon navy"><i class="fas fa-comments"></i></div><div><h3>Total</h3><h2>' +
+        all.length +
+        "</h2></div></div>" +
+        '<div class="card"><div class="card-icon teal"><i class="fas fa-inbox"></i></div><div><h3>Open</h3><h2>' +
+        open +
+        "</h2></div></div>" +
+        '<div class="card"><div class="card-icon orange"><i class="fas fa-hourglass-half"></i></div><div><h3>In review</h3><h2>' +
+        review +
+        "</h2></div></div>" +
+        '<div class="card"><div class="card-icon green"><i class="fas fa-check"></i></div><div><h3>Resolved</h3><h2>' +
+        resolved +
+        "</h2></div></div>";
+    }
+
+    function getFilteredList() {
+      return MV.listAllFeedback()
+        .slice()
+        .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+        .filter((f) => {
+          if (deletedFilter === "active") return !f.deletedAt;
+          if (deletedFilter === "deleted") return !!f.deletedAt;
+          return true;
+        });
+    }
+
+    function openHistory(row) {
+      document.getElementById("historyMeta").textContent =
+        (row.userName || "") + " · " + (row.subject || "") + " · " + (row.status || "");
+      const history = MV.getFeedbackHistory(row.id);
+      const body = document.getElementById("historyBody");
+      if (!history.length) {
+        body.innerHTML = "<li><strong>No history yet</strong><p>Changes will appear here.</p></li>";
+      } else {
+        body.innerHTML = history
+          .map(
+            (h) =>
+              "<li><strong>" +
+              (h.action || "update") +
+              "</strong><small>" +
+              MV.formatDate(h.at) +
+              " · " +
+              (h.by || "—") +
+              "</small><p>" +
+              (h.note || "") +
+              "</p></li>"
+          )
+          .join("");
+      }
+      historyModal.classList.add("open");
+    }
+
+    function openView(row) {
+      document.getElementById("viewBody").innerHTML =
+        '<div class="feed-meta" style="margin-bottom:12px">' +
+        "<span><i class=\"fas fa-user\"></i>" +
+        (row.userName || "—") +
+        " (" +
+        (row.userEmail || "—") +
+        ")</span>" +
+        "<span><i class=\"fas fa-tag\"></i>" +
+        (row.category || "—") +
+        "</span>" +
+        "<span><i class=\"fas fa-calendar-day\"></i>" +
+        MV.formatDate(row.createdAt) +
+        "</span></div>" +
+        '<h3 class="feed-title" style="margin-bottom:8px">' +
+        (row.subject || "Feedback") +
+        "</h3>" +
+        '<p class="feed-text">' +
+        (row.message || "") +
+        "</p>" +
+        (row.deletedAt
+          ? '<p class="feed-meta" style="margin-top:10px"><span class="badge badge-neutral">Deleted ' +
+            MV.formatDate(row.deletedAt) +
+            "</span></p>"
+          : "");
+      viewModal.classList.add("open");
+    }
+
+    function openStatus(row) {
+      document.getElementById("statusId").value = row.id;
+      document.getElementById("status").value = row.status || "open";
+      statusModal.classList.add("open");
+    }
+
+    document.getElementById("closeStatus").onclick = () => statusModal.classList.remove("open");
+    document.getElementById("closeHistory").onclick = () => historyModal.classList.remove("open");
+    document.getElementById("closeView").onclick = () => viewModal.classList.remove("open");
+
+    document.getElementById("filterDeleted").addEventListener("change", function () {
+      deletedFilter = this.value;
+      table.render();
+    });
+
+    const table = MV.createTableController({
+      perPage: 6,
+      getData: getFilteredList,
+      searchKeys: ["userName", "userEmail", "subject", "category", "message", "status"],
+      paginationEl: "#pagination",
+      renderRows(rows) {
+        const feed = document.getElementById("feed");
+        if (!rows.length) {
+          feed.innerHTML = '<div class="empty-feed"><i class="fas fa-inbox"></i>No feedback found</div>';
+          return;
+        }
+        feed.innerHTML = rows
+          .map((f) => {
+            const openClass = !f.deletedAt && (f.status === "open" || f.status === "in-review") ? " is-open" : "";
+            return (
+              '<article class="feed-item' +
+              openClass +
+              '">' +
+              '<div class="feed-ico feedback"><i class="fas fa-comment-dots"></i></div>' +
+              '<div class="feed-body">' +
+              '<div class="feed-top"><h3 class="feed-title">' +
+              (f.subject || "Feedback") +
+              (f.deletedAt ? ' <span class="badge badge-neutral">deleted</span>' : "") +
+              '</h3><span class="badge badge-neutral">' +
+              (f.category || "") +
+              '</span><span class="badge ' +
+              statusBadge(f.status) +
+              '">' +
+              (f.status || "open") +
+              "</span></div>" +
+              '<p class="feed-text clamp">' +
+              (f.message || "") +
+              "</p>" +
+              '<div class="feed-meta"><span><i class="fas fa-user"></i>' +
+              (f.userName || "—") +
+              '</span><span><i class="fas fa-envelope"></i>' +
+              (f.userEmail || "") +
+              '</span><span><i class="fas fa-calendar-day"></i>' +
+              MV.formatDate(f.createdAt) +
+              "</span></div></div>" +
+              '<div class="feed-actions">' +
+              '<button class="btn btn-outline btn-sm" data-view="' +
+              f.id +
+              '" title="View"><i class="fas fa-eye"></i></button>' +
+              '<button class="btn btn-outline btn-sm" data-hist="' +
+              f.id +
+              '" title="History"><i class="fas fa-clock-rotate-left"></i></button>' +
+              (f.deletedAt
+                ? ""
+                : '<button class="btn btn-outline btn-sm" data-status="' +
+                  f.id +
+                  '" title="Status"><i class="fas fa-flag"></i></button>') +
+              (f.deletedAt
+                ? ""
+                : '<button class="btn btn-danger btn-sm" data-del="' +
+                  f.id +
+                  '" title="Delete"><i class="fas fa-trash"></i></button>') +
+              "</div></article>"
+            );
+          })
+          .join("");
+
+        const find = (id) => MV.listAllFeedback().find((x) => x.id === id);
+        feed.querySelectorAll("[data-view]").forEach((b) => {
+          b.onclick = () => {
+            const row = find(b.dataset.view);
+            if (row) openView(row);
+          };
+        });
+        feed.querySelectorAll("[data-hist]").forEach((b) => {
+          b.onclick = () => {
+            const row = find(b.dataset.hist);
+            if (row) openHistory(row);
+          };
+        });
+        feed.querySelectorAll("[data-status]").forEach((b) => {
+          b.onclick = () => {
+            const row = find(b.dataset.status);
+            if (row) openStatus(row);
+          };
+        });
+        feed.querySelectorAll("[data-del]").forEach((b) => {
+          b.onclick = () => {
+            MV.confirmDelete("Move this feedback to deleted history?").then(async (ok) => {
+              if (!ok) return;
+              await MV.deleteFeedback(b.dataset.del);
+              refreshCards();
+              table.render();
+            });
+          };
+        });
+      },
+    });
+    table.bindSearch("#search");
+    table.bindFilter("#filterStatus", "status");
+    table.bindFilter("#filterCategory", "category");
+    refreshCards();
+    table.render();
+
+    document.getElementById("statusForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const id = document.getElementById("statusId").value;
+      const status = document.getElementById("status").value;
+      const result = await MV.updateFeedback(id, { status }, { adminOnly: true });
+      if (!result.ok) {
+        MV.showNotice(result.message || "Could not update status", "Feedback");
+        return;
+      }
+      statusModal.classList.remove("open");
+      refreshCards();
+      table.render();
+    });
+  })();
+  </script>
+</body>
+</html>

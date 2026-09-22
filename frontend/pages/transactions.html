@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transactions | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header">
+        <h1>Transactions</h1>
+        <p>Track income and expenses with search, filters, and pagination</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>All transactions</h2>
+          <button class="btn btn-danger btn-sm" id="clearAll"><i class="fas fa-trash"></i> Clear all</button>
+          <button class="btn btn-primary btn-sm" id="openAdd"><i class="fas fa-plus"></i> Add transaction</button>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="Search name, category..." />
+          <select id="filterType">
+            <option value="">All types</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+          <select id="filterCategory">
+            <option value="">All categories</option>
+            <option>Salary</option>
+            <option>Food</option>
+            <option>Rent</option>
+            <option>Transport</option>
+            <option>Shopping</option>
+            <option>Utilities</option>
+            <option>Healthcare</option>
+            <option>Entertainment</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Date</th><th>Name</th><th>Category</th><th>Type</th><th>Amount</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <h3 id="modalTitle">Add transaction</h3>
+      <form id="txForm" novalidate>
+        <input type="hidden" id="editId" />
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="date">Date</label>
+            <input type="date" id="date" />
+            <span class="field-error" id="dateError"></span>
+          </div>
+          <div class="form-group">
+            <label for="name">Name</label>
+            <input type="text" id="name" />
+            <span class="field-error" id="nameError"></span>
+          </div>
+          <div class="form-group">
+            <label for="category">Category</label>
+            <select id="category">
+              <option value="">Select</option>
+              <option>Salary</option><option>Food</option><option>Rent</option><option>Transport</option>
+              <option>Shopping</option><option>Utilities</option><option>Healthcare</option>
+              <option>Entertainment</option><option>Other</option>
+            </select>
+            <span class="field-error" id="categoryError"></span>
+          </div>
+          <div class="form-group">
+            <label for="type">Type</label>
+            <select id="type"><option value="expense">Expense</option><option value="income">Income</option></select>
+            <span class="field-error" id="typeError"></span>
+          </div>
+          <div class="form-group">
+            <label for="amount">Amount (₹)</label>
+            <input type="number" id="amount" min="0" step="1" />
+            <span class="field-error" id="amountError"></span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="closeModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({ page: "transactions.html", title: "Transactions" });
+    if (!user) throw new Error("auth");
+
+    const modal = document.getElementById("modal");
+    function openModal(row) {
+      document.getElementById("modalTitle").textContent = row ? "Edit transaction" : "Add transaction";
+      document.getElementById("editId").value = row ? row.id : "";
+      document.getElementById("date").value = row ? row.date : MV.todayISO();
+      document.getElementById("name").value = row ? row.name : "";
+      document.getElementById("category").value = row ? row.category : "";
+      document.getElementById("type").value = row ? row.type : "expense";
+      document.getElementById("amount").value = row ? row.amount : "";
+      modal.classList.add("open");
+      MV.bindMaxDate();
+    }
+    function closeModal() { modal.classList.remove("open"); }
+
+    document.getElementById("openAdd").onclick = () => openModal(null);
+    document.getElementById("closeModal").onclick = closeModal;
+
+    const table = MV.createTableController({
+      perPage: 6,
+      getData: () => MV.listFor(MV.KEYS.transactions),
+      searchKeys: ["name", "category", "type", "date"],
+      paginationEl: "#pagination",
+      renderRows(rows) {
+        const body = document.getElementById("tbody");
+        if (!rows.length) {
+          body.innerHTML = '<tr><td colspan="6" class="empty-state">No transactions found</td></tr>';
+          return;
+        }
+        body.innerHTML = rows.map((t, i) => `
+          <tr class="row-tone-${i % 4}">
+            <td>${MV.formatDate(t.date)}</td>
+            <td>${t.name}</td>
+            <td>${t.category}</td>
+            <td><span class="badge ${t.type === "income" ? "badge-success" : "badge-warning"}">${t.type}</span></td>
+            <td class="${t.type === "income" ? "amt-pos" : "amt-neg"}">${MV.formatINR(t.amount)}</td>
+            <td>
+              <button class="btn btn-outline btn-sm" data-edit="${t.id}"><i class="fas fa-pen"></i></button>
+              <button class="btn btn-danger btn-sm" data-del="${t.id}"><i class="fas fa-trash"></i></button>
+            </td>
+          </tr>`).join("");
+        body.querySelectorAll("[data-edit]").forEach((b) =>
+          b.onclick = () => openModal(MV.listFor(MV.KEYS.transactions).find((x) => String(x.id) === String(b.dataset.edit)))
+        );
+        body.querySelectorAll("[data-del]").forEach((b) =>
+          b.onclick = () => {
+            MV.confirmDelete("Are you sure you want to delete this transaction?").then(async (ok) => {
+              if (!ok) return;
+              await MV.deleteItem(MV.KEYS.transactions, b.dataset.del);
+              table.render();
+            });
+          }
+        );
+      },
+    });
+    table.bindSearch("#search");
+    table.bindFilter("#filterType", "type");
+    table.bindFilter("#filterCategory", "category");
+    table.render();
+
+    document.getElementById("txForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const payload = {
+        date: document.getElementById("date").value,
+        name: document.getElementById("name").value.trim(),
+        category: document.getElementById("category").value,
+        type: document.getElementById("type").value,
+        amount: Number(document.getElementById("amount").value),
+      };
+      const errors = {
+        date: MV.Validators.dateNotFuture(payload.date),
+        name: MV.Validators.required(payload.name, "Name"),
+        category: MV.Validators.required(payload.category, "Category"),
+        amount: MV.Validators.amount(document.getElementById("amount").value),
+      };
+      Object.keys(errors).forEach((k) => MV.showFieldError(k, errors[k]));
+      if (Object.values(errors).some(Boolean)) return;
+
+      const id = document.getElementById("editId").value;
+      if (id) await MV.updateItem(MV.KEYS.transactions, id, payload);
+      else {
+        await MV.addItem(MV.KEYS.transactions, payload);
+        MV.pushNotification("Transaction added", payload.name + " — " + MV.formatINR(payload.amount), "info");
+      }
+      closeModal();
+      table.render();
+    });
+
+    document.getElementById("clearAll").onclick = function () {
+      const count = MV.listFor(MV.KEYS.transactions).length;
+      if (!count) {
+        MV.showNotice("There are no transactions to clear.", "Clear All");
+        return;
+      }
+      MV.confirmDelete("Clear all " + count + " transaction" + (count === 1 ? "" : "s") + "? This cannot be undone.").then(async (ok) => {
+        if (!ok) return;
+        await MV.saveFor(MV.KEYS.transactions, []);
+        table.render();
+      });
+    };
+  })();
+  </script>
+</body>
+</html>

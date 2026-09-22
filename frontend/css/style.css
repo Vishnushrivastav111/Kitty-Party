@@ -1,0 +1,389 @@
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Segoe UI',sans-serif;
+}
+
+/* =========================
+   BODY
+========================= */
+
+body{
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    background:radial-gradient(
+        circle at top center,
+        #ffffff 0%,
+        #dbeafe 40%,
+        #93c5fd 100%
+    );
+}
+
+/* =========================
+   LOGIN / REGISTER CARD
+========================= */
+
+.card,
+.login-container{
+    width:750px;
+    background:#ffffff;
+    padding:35px;
+    border-radius:20px;
+
+    box-shadow:
+        0 20px 50px rgba(37,99,235,.12),
+        0 8px 20px rgba(0,0,0,.06);
+
+    animation:fadeIn .6s ease;
+}
+
+/* =========================
+   LOGO
+========================= */
+
+.logo{
+    text-align:center;
+    margin-bottom:20px;
+}
+
+.logo i{
+    font-size:45px;
+    color:#2563eb;
+}
+
+.logo h1{
+    font-size:28px;
+    font-weight:800;
+    margin-top:10px;
+    color:#1e293b;
+}
+
+/* =========================
+   HEADING
+========================= */
+
+h2{
+    font-size:36px;
+    font-weight:900;
+    text-align:center;
+    margin-bottom:20px;
+    letter-spacing:1px;
+    position:relative;
+
+    background:linear-gradient(
+        135deg,
+        #2563eb,
+        #38bdf8
+    );
+
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+}
+
+h2::after{
+    content:"";
+    width:80px;
+    height:4px;
+    border-radius:10px;
+
+    background:linear-gradient(
+        90deg,
+        #2563eb,
+        #38bdf8
+    );
+
+    position:absolute;
+    left:50%;
+    bottom:-10px;
+    transform:translateX(-50%);
+}
+
+.subtitle{
+    text-align:center;
+    margin-top:15px;
+    margin-bottom:25px;
+    font-size:15px;
+    color:#64748b;
+    font-weight:500;
+}
+
+/* =========================
+   FORM ALIGNMENT
+========================= */
+
+.form-row{
+    display:grid;
+    grid-template-columns:160px 1fr;
+    gap:15px;
+    align-items:start;
+    margin-bottom:20px;
+}
+
+.form-row label{
+    margin-top:14px;
+    font-size:15px;
+    font-weight:600;
+    color:#334155;
+}
+
+.input-wrapper{
+    width:100%;
+}
+
+/* =========================
+   INPUT FIELDS
+========================= */
+
+.input-wrapper input,
+.input-box input{
+    width:100%;
+
+    padding:14px 16px;
+
+    border:1px solid #dbeafe;
+    border-radius:12px;
+
+    outline:none;
+    background:#fff;
+
+    font-size:15px;
+
+    box-shadow:
+        0 10px 25px rgba(37,99,235,.10),
+        0 2px 6px rgba(0,0,0,.05);
+
+    transition:all .3s ease;
+}
+
+.input-wrapper input:hover,
+.input-box input:hover{
+    box-shadow:
+        0 12px 28px rgba(37,99,235,.12),
+        0 4px 10px rgba(0,0,0,.05);
+}
+
+.input-wrapper input:focus,
+.input-box input:focus{
+    border-color:#3b82f6;
+
+    box-shadow:
+        0 15px 30px rgba(37,99,235,.18),
+        0 0 0 4px rgba(59,130,246,.15);
+
+    transform:translateY(-2px);
+}
+
+/* =========================
+   PASSWORD TOGGLE
+========================= */
+
+.togglePassword{
+    position:absolute;
+    right:15px;
+    top:50%;
+    transform:translateY(-50%);
+    cursor:pointer;
+    color:#64748b;
+}
+
+/* =========================
+   LINKS
+========================= */
+
+.extra-links,
+.forgot-password{
+    text-align:right;
+    margin-bottom:20px;
+}
+
+.extra-links a,
+.forgot-password a,
+.bottom-text a,
+.register-link a{
+    color:#2563eb;
+    text-decoration:none;
+    font-weight:600;
+}
+
+.extra-links a:hover,
+.forgot-password a:hover,
+.bottom-text a:hover,
+.register-link a:hover{
+    color:#1d4ed8;
+}
+
+.bottom-text,
+.register-link{
+    text-align:center;
+    margin-top:20px;
+    color:#64748b;
+}
+
+/* =========================
+   BUTTON
+========================= */
+
+.btn,
+.login-btn{
+    width:100%;
+    padding:14px;
+
+    border:none;
+    border-radius:12px;
+
+    background:linear-gradient(
+        135deg,
+        #2563eb,
+        #38bdf8
+    );
+
+    color:#fff;
+    font-size:16px;
+    font-weight:700;
+
+    cursor:pointer;
+
+    box-shadow:
+        0 8px 20px rgba(37,99,235,.25);
+
+    transition:all .3s ease;
+}
+
+.btn:hover,
+.login-btn:hover{
+    transform:translateY(-3px);
+
+    box-shadow:
+        0 12px 25px rgba(37,99,235,.35);
+}
+
+/* =========================
+   CHECKBOX
+========================= */
+
+.checkbox-group{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:20px 0;
+}
+
+.checkbox-group input{
+    width:18px;
+    height:18px;
+    cursor:pointer;
+    box-shadow:none;
+}
+
+.checkbox-group label{
+    margin:0;
+    font-size:14px;
+    color:#334155;
+    font-weight:500;
+}
+
+/* =========================
+   VALIDATION
+========================= */
+
+.error-message{
+    display:none;
+
+    margin-top:8px;
+    padding:10px 12px;
+
+    background:#fef2f2;
+    color:#dc2626;
+
+    border-left:4px solid #dc2626;
+    border-radius:8px;
+
+    font-size:13px;
+    font-weight:500;
+}
+
+.error-message.show{
+    display:block;
+}
+
+.input-error{
+    border:2px solid #ef4444 !important;
+
+    box-shadow:
+        0 0 0 4px rgba(239,68,68,.15) !important;
+}
+
+.input-success{
+    border:2px solid #22c55e !important;
+
+    box-shadow:
+        0 0 0 4px rgba(34,197,94,.15) !important;
+}
+
+/* =========================
+   POPUP
+========================= */
+
+#popup{
+    animation:slideIn .3s ease;
+    border-radius:10px;
+
+    box-shadow:
+        0 10px 25px rgba(0,0,0,.15);
+}
+
+/* =========================
+   ANIMATIONS
+========================= */
+
+@keyframes fadeIn{
+    from{
+        opacity:0;
+        transform:translateY(20px);
+    }
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+}
+
+@keyframes slideIn{
+    from{
+        opacity:0;
+        transform:translateX(300px);
+    }
+    to{
+        opacity:1;
+        transform:translateX(0);
+    }
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media(max-width:768px){
+
+    .card,
+    .login-container{
+        width:95%;
+        padding:25px;
+    }
+
+    .form-row{
+        grid-template-columns:1fr;
+        gap:8px;
+    }
+
+    .form-row label{
+        margin-top:0;
+    }
+
+    h2{
+        font-size:30px;
+    }
+}

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>News | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header">
+        <h1>News</h1>
+        <p>Announcements from MicroVault admins — same feed for every member</p>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Latest updates</h2>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="Search news..." />
+          <select id="filterPriority">
+            <option value="">All priorities</option>
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div id="feed"></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+
+      <div class="panel" id="detailPanel" style="display:none;margin-top:16px">
+        <div class="panel-header">
+          <h2 id="detailTitle">News</h2>
+          <button type="button" class="btn btn-outline btn-sm" id="closeDetail">Close</button>
+        </div>
+        <p id="detailMeta" class="feed-meta" style="margin-bottom:12px"></p>
+        <p id="detailBody" class="feed-text"></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({
+      page: "news.html",
+      title: "News",
+      roles: [MV.ROLES.USER],
+      denyUrl: MV.getHomePage(MV.getCurrentUser() && MV.getCurrentUser().role),
+    });
+    if (!user) throw new Error("auth");
+
+    const detailPanel = document.getElementById("detailPanel");
+    document.getElementById("closeDetail").onclick = () => {
+      detailPanel.style.display = "none";
+    };
+
+    function showDetail(row) {
+      document.getElementById("detailTitle").textContent = row.title || "News";
+      document.getElementById("detailMeta").innerHTML =
+        "<span><i class=\"fas fa-calendar-day\"></i>" +
+        MV.formatDate(row.createdAt) +
+        "</span><span><i class=\"fas fa-user-shield\"></i>" +
+        (row.authorName || "Admin") +
+        "</span><span><i class=\"fas fa-flag\"></i>" +
+        (row.priority === "high" ? "High priority" : "Normal") +
+        "</span>";
+      document.getElementById("detailBody").textContent = row.body || "";
+      detailPanel.style.display = "block";
+      detailPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    const table = MV.createTableController({
+      perPage: 6,
+      getData: () => MV.getPublishedNews(),
+      searchKeys: ["title", "body", "authorName", "priority"],
+      paginationEl: "#pagination",
+      renderRows(rows) {
+        const feed = document.getElementById("feed");
+        if (!rows.length) {
+          feed.innerHTML =
+            '<div class="empty-feed"><i class="fas fa-newspaper"></i>No news yet. Check back when admins post an update.</div>';
+          return;
+        }
+        feed.innerHTML = rows
+          .map((n) => {
+            return (
+              '<article class="news-article' +
+              (n.priority === "high" ? " is-high" : "") +
+              ' is-clickable" data-open="' +
+              n.id +
+              '">' +
+              '<div class="news-article-head">' +
+              "<div><h3>" +
+              (n.title || "Update") +
+              '</h3><div class="feed-meta"><span><i class="fas fa-calendar-day"></i>' +
+              MV.formatDate(n.createdAt) +
+              '</span><span><i class="fas fa-user-shield"></i>' +
+              (n.authorName || "Admin") +
+              "</span></div></div>" +
+              '<span class="badge ' +
+              (n.priority === "high" ? "badge-warning" : "badge-info") +
+              '">' +
+              (n.priority || "normal") +
+              "</span></div>" +
+              '<p class="feed-text clamp">' +
+              (n.body || "") +
+              '</p><p class="feed-meta" style="margin-top:12px"><span><i class="fas fa-arrow-right"></i>Tap to read full update</span></p>' +
+              "</article>"
+            );
+          })
+          .join("");
+
+        feed.querySelectorAll("[data-open]").forEach((card) => {
+          card.onclick = () => {
+            const item = MV.getPublishedNews().find((x) => String(x.id) === String(card.dataset.open));
+            if (item) showDetail(item);
+          };
+        });
+      },
+    });
+    table.bindSearch("#search");
+    table.bindFilter("#filterPriority", "priority");
+    table.render();
+  })();
+  </script>
+</body>
+</html>

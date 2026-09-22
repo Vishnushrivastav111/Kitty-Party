@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>News | MicroVault Admin</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header">
+        <h1>Broadcast news</h1>
+        <p>Post updates that appear for every member at once</p>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>News posts</h2>
+          <button class="btn btn-primary btn-sm" id="openAdd"><i class="fas fa-plus"></i> Post news</button>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="Search news..." />
+          <select id="filterStatus">
+            <option value="">All statuses</option>
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+            <option value="archived">Archived</option>
+          </select>
+          <select id="filterPriority">
+            <option value="">All priorities</option>
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div id="feed"></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <h3 id="modalTitle">Post news</h3>
+      <form id="newsForm" novalidate>
+        <input type="hidden" id="editId" />
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:1/-1">
+            <label for="title">Title</label>
+            <input id="title" maxlength="140" />
+            <span class="field-error" id="titleError"></span>
+          </div>
+          <div class="form-group">
+            <label for="priority">Priority</label>
+            <select id="priority">
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status">
+              <option value="published">Publish now</option>
+              <option value="draft">Save as draft</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label for="body">Message</label>
+            <textarea id="body" rows="6" maxlength="2000"></textarea>
+            <span class="field-error" id="bodyError"></span>
+          </div>
+        </div>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:12px">
+          Publishing sends this news to all active members and also drops a notification in each inbox.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="closeModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({
+      page: "admin-news.html",
+      title: "News",
+      roles: [MV.ROLES.ADMIN, MV.ROLES.SUPERADMIN],
+    });
+    if (!user) throw new Error("auth");
+
+    const modal = document.getElementById("modal");
+
+    function openModal(row) {
+      document.getElementById("modalTitle").textContent = row ? "Edit news" : "Post news";
+      document.getElementById("editId").value = row ? row.id : "";
+      document.getElementById("title").value = row ? row.title : "";
+      document.getElementById("body").value = row ? row.body : "";
+      document.getElementById("priority").value = row ? row.priority || "normal" : "normal";
+      document.getElementById("status").value =
+        row && row.status === "draft" ? "draft" : "published";
+      ["title", "body"].forEach((k) => MV.showFieldError(k, ""));
+      modal.classList.add("open");
+    }
+
+    document.getElementById("openAdd").onclick = () => openModal(null);
+    document.getElementById("closeModal").onclick = () => modal.classList.remove("open");
+
+    const table = MV.createTableController({
+      perPage: 5,
+      getData: () =>
+        MV.listAllNews()
+          .filter((n) => !n.deletedAt)
+          .slice()
+          .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")),
+      searchKeys: ["title", "body", "authorName", "status", "priority"],
+      paginationEl: "#pagination",
+      renderRows(rows) {
+        const feed = document.getElementById("feed");
+        if (!rows.length) {
+          feed.innerHTML =
+            '<div class="empty-feed"><i class="fas fa-newspaper"></i>No news yet — post your first update</div>';
+          return;
+        }
+        feed.innerHTML = rows
+          .map((n) => {
+            return (
+              '<article class="news-article' +
+              (n.priority === "high" ? " is-high" : "") +
+              '">' +
+              '<div class="news-article-head">' +
+              "<div><h3>" +
+              (n.title || "Update") +
+              '</h3><div class="feed-meta"><span><i class="fas fa-calendar-day"></i>' +
+              MV.formatDate(n.createdAt) +
+              '</span><span><i class="fas fa-user-shield"></i>' +
+              (n.authorName || "Admin") +
+              "</span></div></div>" +
+              "<div>" +
+              '<span class="badge ' +
+              (n.priority === "high" ? "badge-warning" : "badge-info") +
+              '" style="margin-right:6px">' +
+              (n.priority || "normal") +
+              '</span><span class="badge ' +
+              (n.status === "published"
+                ? "badge-success"
+                : n.status === "draft"
+                  ? "badge-neutral"
+                  : "badge-warning") +
+              '">' +
+              (n.status || "published") +
+              "</span></div></div>" +
+              '<p class="feed-text clamp">' +
+              (n.body || "") +
+              '</p><div class="feed-actions" style="flex-direction:row;margin-top:14px">' +
+              '<button class="btn btn-outline btn-sm" data-edit="' +
+              n.id +
+              '"><i class="fas fa-pen"></i> Edit</button>' +
+              '<button class="btn btn-danger btn-sm" data-del="' +
+              n.id +
+              '"><i class="fas fa-trash"></i> Delete</button>' +
+              "</div></article>"
+            );
+          })
+          .join("");
+
+        feed.querySelectorAll("[data-edit]").forEach((b) => {
+          b.onclick = () =>
+            openModal(MV.listAllNews().find((x) => String(x.id) === String(b.dataset.edit) && !x.deletedAt));
+        });
+        feed.querySelectorAll("[data-del]").forEach((b) => {
+          b.onclick = () => {
+            MV.confirmDelete("Remove this news post from all member feeds?").then(async (ok) => {
+              if (!ok) return;
+              await MV.deleteNews(b.dataset.del);
+              table.render();
+            });
+          };
+        });
+      },
+    });
+    table.bindSearch("#search");
+    table.bindFilter("#filterStatus", "status");
+    table.bindFilter("#filterPriority", "priority");
+    table.render();
+
+    document.getElementById("newsForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const payload = {
+        title: document.getElementById("title").value.trim(),
+        body: document.getElementById("body").value.trim(),
+        priority: document.getElementById("priority").value,
+        status: document.getElementById("status").value,
+      };
+      const errors = {
+        title: MV.Validators.required(payload.title, "Title"),
+        body: MV.Validators.required(payload.body, "Message"),
+      };
+      if (!errors.body && payload.body.length < 10) {
+        errors.body = "Message must be at least 10 characters";
+      }
+      Object.keys(errors).forEach((k) => MV.showFieldError(k, errors[k]));
+      if (Object.values(errors).some(Boolean)) return;
+
+      const id = document.getElementById("editId").value;
+      const result = id ? await MV.updateNews(id, payload) : await MV.addNews(payload);
+      if (!result.ok) {
+        MV.showNotice(result.message || "Could not save news", "News");
+        return;
+      }
+      modal.classList.remove("open");
+      table.render();
+      if (payload.status === "published") {
+        MV.showNotice("News published. All active members can see it now.", "News");
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

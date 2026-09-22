@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+  <div class="auth-page">
+    <section class="auth-visual">
+      <div class="brand"><i class="fas fa-vault"></i> MicroVault</div>
+      <h1>Create your finance workspace</h1>
+      <p>Register as a member to manage savings, budgets, goals, and understand what you can afford — with clear controls built for business use.</p>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-card">
+        <h2>Create account</h2>
+        <p class="subtitle">All fields are validated before registration</p>
+
+        <form id="registerForm" novalidate>
+          <div class="auth-field">
+            <label for="fullName">Full name</label>
+            <input type="text" id="fullName" placeholder="Enter full name" />
+            <span class="field-error" id="fullNameError"></span>
+          </div>
+          <div class="auth-field">
+            <label for="email">Email address</label>
+            <input type="email" id="email" placeholder="name@company.com" />
+            <span class="field-error" id="emailError"></span>
+          </div>
+          <div class="auth-field">
+            <label for="phone">Phone number</label>
+            <input type="tel" id="phone" placeholder="10-digit mobile" maxlength="10" />
+            <span class="field-error" id="phoneError"></span>
+          </div>
+          <div class="auth-field">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Create a strong password" />
+            <span class="field-error" id="passwordError"></span>
+          </div>
+          <div class="auth-field">
+            <label for="confirmPassword">Confirm password</label>
+            <input type="password" id="confirmPassword" placeholder="Re-enter password" />
+            <span class="field-error" id="confirmPasswordError"></span>
+          </div>
+
+          <div class="auth-field" style="display:flex;gap:8px;align-items:flex-start">
+            <input type="checkbox" id="terms" style="width:auto;margin-top:4px" />
+            <label for="terms" style="font-weight:500">I accept the <a href="terms.html" style="color:var(--teal-dark)">Terms &amp; Conditions</a></label>
+          </div>
+          <span class="field-error" id="termsError"></span>
+
+          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px">Create account</button>
+        </form>
+
+        <p class="bottom-text">Already have an account? <a href="login.html">Login</a></p>
+      </div>
+    </section>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script>
+    MV.bindPasswordToggles();
+    function showErr(id, msg) {
+      const el = document.getElementById(id + "Error");
+      const input = document.getElementById(id);
+      if (el) {
+        el.textContent = msg || "";
+        el.style.display = msg ? "block" : "none";
+      }
+      if (input) {
+        input.classList.toggle("input-error", !!msg);
+        input.classList.toggle("input-success", !msg && input.type !== "checkbox" && input.value);
+      }
+    }
+
+    const draft = MV.get(MV.KEYS.registerDraft, null);
+    if (draft) {
+      ["fullName", "email", "phone", "password", "confirmPassword"].forEach((k) => {
+        if (draft[k] && document.getElementById(k)) document.getElementById(k).value = draft[k];
+      });
+    }
+    if (localStorage.getItem(MV.KEYS.termsAccepted) === "true") {
+      document.getElementById("terms").checked = true;
+    }
+
+    document.getElementById("fullName").addEventListener("input", function () {
+      showErr("fullName", MV.Validators.name(this.value));
+    });
+    document.getElementById("email").addEventListener("input", function () {
+      showErr("email", MV.Validators.email(this.value.trim()));
+    });
+    document.getElementById("phone").addEventListener("input", function () {
+      showErr("phone", MV.Validators.phone(this.value.trim()));
+    });
+    document.getElementById("password").addEventListener("input", function () {
+      showErr("password", MV.Validators.password(this.value));
+    });
+    document.getElementById("confirmPassword").addEventListener("input", function () {
+      const p = document.getElementById("password").value;
+      showErr("confirmPassword", this.value !== p ? "Passwords do not match" : !this.value ? "Confirm password is required" : "");
+    });
+
+    document.getElementById("terms").addEventListener("change", function () {
+      showErr("terms", this.checked ? "" : "Please accept Terms & Conditions");
+      localStorage.setItem(MV.KEYS.termsAccepted, this.checked ? "true" : "false");
+    });
+
+    document.querySelector('a[href="terms.html"]').addEventListener("click", function () {
+      MV.set(MV.KEYS.registerDraft, {
+        fullName: document.getElementById("fullName").value,
+        email: document.getElementById("email").value,
+        phone: document.getElementById("phone").value,
+        password: document.getElementById("password").value,
+        confirmPassword: document.getElementById("confirmPassword").value,
+      });
+    });
+
+    document.getElementById("registerForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const data = {
+        fullName: document.getElementById("fullName").value.trim(),
+        email: document.getElementById("email").value.trim(),
+        phone: document.getElementById("phone").value.trim(),
+        password: document.getElementById("password").value,
+        confirmPassword: document.getElementById("confirmPassword").value,
+      };
+      const errors = {
+        fullName: MV.Validators.name(data.fullName),
+        email: MV.Validators.email(data.email),
+        phone: MV.Validators.phone(data.phone),
+        password: MV.Validators.password(data.password),
+        confirmPassword: data.confirmPassword !== data.password ? "Passwords do not match" : !data.confirmPassword ? "Confirm password is required" : "",
+        terms: document.getElementById("terms").checked ? "" : "Please accept Terms & Conditions",
+      };
+      Object.keys(errors).forEach((k) => showErr(k, errors[k]));
+      if (Object.values(errors).some(Boolean)) return;
+
+      const result = await MV.registerUser(data);
+      if (!result.ok) {
+        showErr("email", result.message);
+        return;
+      }
+      localStorage.removeItem(MV.KEYS.registerDraft);
+      localStorage.removeItem(MV.KEYS.termsAccepted);
+      alert("Account created successfully. Please login.");
+      window.location.href = "login.html";
+    });
+  </script>
+</body>
+</html>

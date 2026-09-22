@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terms & Conditions | MicroVault</title>
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body style="background:var(--bg);padding:24px">
+  <div class="panel" style="max-width:860px;margin:0 auto">
+    <h1 style="color:var(--navy);margin-bottom:12px">Terms &amp; Conditions</h1>
+    <div style="max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:16px;line-height:1.6;color:var(--slate);font-size:14px" id="termsBox">
+      <p><strong>MicroVault</strong> is a business-oriented personal finance workspace for tracking income, expenses, savings, budgets, goals, and affordability checks.</p>
+      <p>1. You agree to provide accurate registration and financial information.</p>
+      <p>2. Credentials must be kept confidential. You are responsible for activity under your account.</p>
+      <p>3. Admin and Super Admin roles have elevated access for user/admin management as configured by the organization.</p>
+      <p>4. Data in this demo build is stored locally in your browser (localStorage) and is not a substitute for regulated banking advice.</p>
+      <p>5. MicroVault does not execute real payments or investments; it is a planning and tracking tool.</p>
+      <p>6. You may request account closure by contacting your Super Admin or deleting local browser data.</p>
+      <p>7. By accepting, you confirm you have read and understood these terms.</p>
+      <p style="height:80px"></p>
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+      <input type="checkbox" id="acceptCheck" disabled />
+      <span>I have read and accept the Terms &amp; Conditions</span>
+    </label>
+    <div class="form-actions">
+      <a class="btn btn-outline" href="register.html">Back</a>
+      <button type="button" class="btn btn-primary" id="acceptBtn" disabled>Accept &amp; continue</button>
+    </div>
+  </div>
+  <script src="../js/app.js"></script>
+  <script>
+    const box = document.getElementById("termsBox");
+    const check = document.getElementById("acceptCheck");
+    const btn = document.getElementById("acceptBtn");
+    box.addEventListener("scroll", function () {
+      if (box.scrollTop + box.clientHeight >= box.scrollHeight - 8) {
+        check.disabled = false;
+      }
+    });
+    check.addEventListener("change", function () {
+      btn.disabled = !check.checked;
+    });
+    btn.addEventListener("click", function () {
+      localStorage.setItem(MV.KEYS.termsAccepted, "true");
+      window.location.href = "register.html";
+    });
+  </script>
+</body>
+</html>

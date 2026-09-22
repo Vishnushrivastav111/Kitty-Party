@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header">
+        <h1>Welcome, <span id="welcomeName">Member</span></h1>
+        <p>Live overview with charts, progress, and demo data</p>
+      </div>
+
+      <div class="cards" id="statCards"></div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-pie"></i> Expense mix</h3>
+          <div class="chart-wrap"><canvas id="expensePie"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-column"></i> Income vs expense</h3>
+          <div class="chart-wrap"><canvas id="incomeBar"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-line"></i> Savings trend</h3>
+          <div class="chart-wrap"><canvas id="savingsLine"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fas fa-gauge-high"></i> Health &amp; budget use</h3>
+          <div class="chart-wrap"><canvas id="healthDoughnut"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Recent transactions</h2>
+          <a class="btn btn-primary btn-sm" href="transactions.html"><i class="fas fa-plus"></i> Manage</a>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="dashSearch" placeholder="Search transactions..." />
+          <select id="dashType">
+            <option value="">All types</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Date</th><th>Name</th><th>Category</th><th>Type</th><th>Amount</th></tr>
+            </thead>
+            <tbody id="dashTxBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="dashPagination"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Active goals</h2>
+          <a class="btn btn-outline btn-sm" href="goal.html">View all</a>
+        </div>
+        <div id="goalsPreview"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({ page: "dashboard.html", title: "Dashboard" });
+    if (!user) throw new Error("auth");
+
+    document.getElementById("welcomeName").textContent = user.fullName || "Member";
+    const colors = MV.CHART_COLORS;
+    const stats = MV.getDashboardStats();
+    const budgetPct = stats.monthBudget ? Math.min(100, Math.round((stats.spent / stats.monthBudget) * 100)) : 0;
+
+    document.getElementById("statCards").innerHTML = `
+      <div class="card"><div class="card-icon navy"><i class="fas fa-heart-pulse"></i></div><div><h3>Financial health</h3><h2>${stats.health}/100</h2>
+        <div class="progress c1"><span style="width:${stats.health}%"></span></div></div></div>
+      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Total savings</h3><h2>${MV.formatINR(stats.totalSavings)}</h2>
+        <div class="progress c6"><span style="width:${Math.min(100, stats.totalSavings / 2000)}%"></span></div></div></div>
+      <div class="card"><div class="card-icon orange"><i class="fas fa-chart-pie"></i></div><div><h3>Monthly budget</h3><h2>${MV.formatINR(stats.monthBudget)}</h2>
+        <p class="${stats.spent > stats.monthBudget ? "negative" : "positive"}">Spent ${MV.formatINR(stats.spent)}</p>
+        <div class="progress c3"><span style="width:${budgetPct}%"></span></div></div></div>
+      <div class="card"><div class="card-icon teal"><i class="fas fa-bullseye"></i></div><div><h3>Active goals</h3><h2>${stats.activeGoals}</h2>
+        <div class="progress c2"><span style="width:${Math.min(100, stats.activeGoals * 20)}%"></span></div></div></div>
+    `;
+
+    const expenses = stats.txs.filter((t) => t.type === "expense");
+    const byCat = {};
+    expenses.forEach((t) => { byCat[t.category] = (byCat[t.category] || 0) + Number(t.amount); });
+    const catLabels = Object.keys(byCat);
+    const catValues = Object.values(byCat);
+
+    new Chart(document.getElementById("expensePie"), {
+      type: "pie",
+      data: {
+        labels: catLabels.length ? catLabels : ["No data"],
+        datasets: [{ data: catValues.length ? catValues : [1], backgroundColor: colors, borderWidth: 0 }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } } },
+    });
+
+    new Chart(document.getElementById("incomeBar"), {
+      type: "bar",
+      data: {
+        labels: ["Income", "Expense", "Savings", "Budget"],
+        datasets: [{
+          label: "Amount (₹)",
+          data: [stats.income || 75000, stats.spent, stats.totalSavings, stats.monthBudget],
+          backgroundColor: [colors[0], colors[3], colors[5], colors[1]],
+          borderRadius: 8,
+        }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+    });
+
+    const sav = stats.savings.slice().reverse();
+    let running = 0;
+    const lineLabels = [];
+    const lineData = [];
+    sav.forEach((s) => {
+      running += Number(s.amount) || 0;
+      lineLabels.push(MV.formatDate(s.date));
+      lineData.push(running);
+    });
+    new Chart(document.getElementById("savingsLine"), {
+      type: "line",
+      data: {
+        labels: lineLabels.length ? lineLabels : ["Start"],
+        datasets: [{
+          label: "Vault balance",
+          data: lineData.length ? lineData : [0],
+          borderColor: colors[0],
+          backgroundColor: "rgba(13,148,136,0.15)",
+          fill: true,
+          tension: 0.35,
+          pointBackgroundColor: colors[1],
+        }],
+      },
+      options: { responsive: true, maintainAspectRatio: false },
+    });
+
+    new Chart(document.getElementById("healthDoughnut"), {
+      type: "doughnut",
+      data: {
+        labels: ["Health score", "Remaining", "Budget used %", "Unused budget %"],
+        datasets: [{
+          data: [stats.health, 100 - stats.health, budgetPct, Math.max(0, 100 - budgetPct)],
+          backgroundColor: [colors[5], "#e2e8f0", colors[2], colors[7]],
+          borderWidth: 0,
+        }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } } },
+    });
+
+    const table = MV.createTableController({
+      perPage: 5,
+      getData: () => MV.listFor(MV.KEYS.transactions),
+      searchKeys: ["name", "category", "type", "date"],
+      paginationEl: "#dashPagination",
+      renderRows(rows) {
+        const body = document.getElementById("dashTxBody");
+        if (!rows.length) {
+          body.innerHTML = '<tr><td colspan="5" class="empty-state">No transactions yet</td></tr>';
+          return;
+        }
+        body.innerHTML = rows.map((t) => `
+          <tr>
+            <td>${MV.formatDate(t.date)}</td>
+            <td>${t.name || "—"}</td>
+            <td>${t.category || "—"}</td>
+            <td><span class="badge ${t.type === "income" ? "badge-success" : "badge-warning"}">${t.type}</span></td>
+            <td>${MV.formatINR(t.amount)}</td>
+          </tr>`).join("");
+      },
+    });
+    table.bindSearch("#dashSearch");
+    table.bindFilter("#dashType", "type");
+    table.render();
+
+    const goals = MV.listFor(MV.KEYS.goals).slice(0, 4);
+    const gp = document.getElementById("goalsPreview");
+    const classes = ["c1", "c2", "c3", "c4", "c5", "c6"];
+    if (!goals.length) {
+      gp.innerHTML = '<div class="empty-state">No goals yet. <a href="goal.html">Add a goal</a></div>';
+    } else {
+      gp.innerHTML = goals.map((g, i) => {
+        const pct = Math.min(100, Math.round(((Number(g.saved) || 0) / (Number(g.target) || 1)) * 100));
+        return `<div style="margin-bottom:14px"><strong>${g.title}</strong> — ${MV.formatINR(g.saved)} / ${MV.formatINR(g.target)} (${pct}%)
+          <div class="progress ${classes[i % classes.length]}"><span style="width:${pct}%"></span></div></div>`;
+      }).join("");
+    }
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Help & Support | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header">
+        <h1>Help &amp; Support</h1>
+        <p>Guided answers for navigation, savings, and common tasks — menu-based assistant</p>
+      </div>
+
+      <div class="chat-layout">
+        <aside class="chat-menu">
+          <h3><i class="fas fa-list"></i> Topics</h3>
+          <button type="button" data-topic="menu" class="active">Main menu</button>
+          <button type="button" data-topic="navigate">How to navigate</button>
+          <button type="button" data-topic="savings">My savings</button>
+          <button type="button" data-topic="budget">Budget &amp; affordability</button>
+          <button type="button" data-topic="goals">Goals &amp; reports</button>
+          <button type="button" data-topic="admin">Admin / roles</button>
+          <button type="button" data-topic="account">Account &amp; security</button>
+        </aside>
+
+        <section class="chat-window">
+          <div class="chat-messages" id="messages"></div>
+          <div class="chat-quick" id="quick"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({ page: "help-support.html", title: "Help & Support" });
+    if (!user) throw new Error("auth");
+
+    const answers = {
+      menu: {
+        bot: "Welcome to MicroVault Help. Choose a topic from the left menu, or pick a quick question below.",
+        chips: [
+          { q: "Where is my dashboard?", a: "Open the sidebar and click Dashboard. On mobile, tap the menu icon first." },
+          { q: "How do I add a transaction?", a: "Go to Transactions → Add transaction. Fill date (no future dates), name, category, type, and amount." },
+          { q: "What is Affordability?", a: "Affordability estimates whether a purchase fits your income, expenses, and savings. Open it from the sidebar." },
+        ],
+      },
+      navigate: {
+        bot: "Use the left sidebar to move between pages. Here is a short map of the main sections.",
+        chips: [
+          { q: "Go to Savings", a: "Sidebar → Savings. You can add deposits/withdrawals with search and filters." },
+          { q: "Go to Budget", a: "Sidebar → Budget. Set category limits; spent amounts come from expense transactions." },
+          { q: "Go to Settings", a: "Sidebar → Settings. Update profile, change password, or reopen financial setup." },
+          { q: "Logout path", a: "Sidebar → Logout, then confirm to end your session and return to login." },
+        ],
+      },
+      savings: {
+        bot: "Savings tracks vault entries. Totals update from your history table.",
+        chips: [
+          { q: "How do I record a deposit?", a: "Savings → Add entry → choose Deposit, enter amount and date (today or earlier), then Save." },
+          { q: "Why is my balance low?", a: "Balance is the sum of all savings amounts. Check for withdrawals or missing deposits in the history table." },
+          { q: "Can I filter savings?", a: "Yes — use the search box and category filter, then paginate through results." },
+        ],
+      },
+      budget: {
+        bot: "Budget limits are per category. Affordability uses income, expenses, and part of savings.",
+        chips: [
+          { q: "Set a food budget", a: "Budget → Add budget → Category Food → enter monthly limit → Save." },
+          { q: "Check if I can buy something", a: "Open Affordability, enter item name and cost, then Check affordability." },
+          { q: "What does Near limit mean?", a: "You have used 80% or more of that category’s monthly limit." },
+        ],
+      },
+      goals: {
+        bot: "Goals track targets; Reports summarize a date range from your transactions.",
+        chips: [
+          { q: "Create a goal", a: "Goals → Add goal. Fill title, category, target, saved amount, and date (future dates are blocked). Save to track progress." },
+          { q: "Generate a report", a: "Reports → choose From/To (no future dates) → Generate. History keeps past reports with pagination." },
+        ],
+      },
+      admin: {
+        bot: "Roles: Member, Admin, Super Admin. Extra sidebar sections appear after admin login.",
+        chips: [
+          { q: "What can Admin do?", a: "Admins see Manage Users (full CRUD on normal users) and Admin Overview, plus all member features." },
+          { q: "What can Super Admin do?", a: "Everything Admin can do, plus Manage Admins — add/edit/delete admin accounts." },
+          { q: "Super Admin email?", a: "supermicrovault@microvault.com (demo password shown on the login page)." },
+        ],
+      },
+      account: {
+        bot: "Keep your profile and password up to date from Settings.",
+        chips: [
+          { q: "Change password", a: "Settings → Security → enter current and new password with validation, then Update password." },
+          { q: "Forgot password", a: "From login, open Forgot password, send a demo verification code, then set a new password." },
+        ],
+      },
+    };
+
+    const messages = document.getElementById("messages");
+    const quick = document.getElementById("quick");
+
+    function addBubble(text, who) {
+      const div = document.createElement("div");
+      div.className = "bubble " + who;
+      div.textContent = text;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function loadTopic(key) {
+      document.querySelectorAll(".chat-menu button").forEach((b) => b.classList.toggle("active", b.dataset.topic === key));
+      messages.innerHTML = "";
+      const pack = answers[key] || answers.menu;
+      addBubble(pack.bot, "bot");
+      quick.innerHTML = "";
+      pack.chips.forEach((c) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "chip";
+        btn.textContent = c.q;
+        btn.onclick = () => {
+          addBubble(c.q, "user");
+          setTimeout(() => addBubble(c.a, "bot"), 200);
+        };
+        quick.appendChild(btn);
+      });
+    }
+
+    document.querySelectorAll(".chat-menu button").forEach((b) =>
+      b.addEventListener("click", () => loadTopic(b.dataset.topic))
+    );
+    loadTopic("menu");
+  })();
+  </script>
+</body>
+</html>

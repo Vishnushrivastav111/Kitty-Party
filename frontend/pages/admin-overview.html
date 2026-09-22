@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header">
+        <h1>Admin dashboard</h1>
+        <p>User insights, activity trends, and platform health</p>
+      </div>
+
+      <div class="cards" id="cards"></div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-pie"></i> Member status</h3>
+          <div class="chart-wrap"><canvas id="statusPie"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-column"></i> Finance setup</h3>
+          <div class="chart-wrap"><canvas id="setupBar"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-line"></i> Member joins by month</h3>
+          <div class="chart-wrap"><canvas id="joinsLine"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-simple"></i> Feedback &amp; news</h3>
+          <div class="chart-wrap"><canvas id="activityBar"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Member insights</h2>
+          <a class="btn btn-primary btn-sm" href="admin-users.html"><i class="fas fa-users"></i> Manage users</a>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="Search members..." />
+          <select id="filterStatus">
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Joined</th>
+                <th>Setup</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({
+      page: "admin-overview.html",
+      title: "Dashboard",
+      roles: [MV.ROLES.ADMIN, MV.ROLES.SUPERADMIN],
+    });
+    if (!user) throw new Error("auth");
+
+    const insight = MV.getAdminInsights();
+    const colors = MV.CHART_COLORS;
+
+    document.getElementById("cards").innerHTML =
+      '<div class="card"><div class="card-icon navy"><i class="fas fa-users"></i></div><div><h3>Total members</h3><h2>' +
+      insight.totalMembers +
+      "</h2></div></div>" +
+      '<div class="card"><div class="card-icon green"><i class="fas fa-user-check"></i></div><div><h3>Active</h3><h2>' +
+      insight.activeMembers +
+      '</h2><p class="positive">Inactive ' +
+      insight.inactiveMembers +
+      "</p></div></div>" +
+      '<div class="card"><div class="card-icon teal"><i class="fas fa-clipboard-check"></i></div><div><h3>Setup complete</h3><h2>' +
+      insight.setupDone +
+      "</h2><p>Pending " +
+      insight.setupPending +
+      "</p></div></div>" +
+      '<div class="card"><div class="card-icon orange"><i class="fas fa-comments"></i></div><div><h3>Open feedback</h3><h2>' +
+      insight.feedbackOpen +
+      "</h2><p>Total " +
+      insight.feedbackTotal +
+      "</p></div></div>" +
+      '<div class="card"><div class="card-icon blue"><i class="fas fa-newspaper"></i></div><div><h3>Published news</h3><h2>' +
+      insight.publishedNews +
+      "</h2><p>All posts " +
+      insight.newsTotal +
+      "</p></div></div>" +
+      '<div class="card"><div class="card-icon navy"><i class="fas fa-user-shield"></i></div><div><h3>Admins</h3><h2>' +
+      insight.adminCount +
+      '</h2><p><a href="admin-news.html" style="color:var(--teal-dark)">Post news</a></p></div></div>';
+
+    new Chart(document.getElementById("statusPie"), {
+      type: "doughnut",
+      data: {
+        labels: insight.statusLabels,
+        datasets: [
+          {
+            data: insight.statusValues.some((v) => v > 0) ? insight.statusValues : [1],
+            backgroundColor: [colors[5], colors[3]],
+            borderWidth: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom" } },
+      },
+    });
+
+    new Chart(document.getElementById("setupBar"), {
+      type: "bar",
+      data: {
+        labels: insight.setupLabels,
+        datasets: [
+          {
+            label: "Members",
+            data: insight.setupValues,
+            backgroundColor: [colors[0], colors[2]],
+            borderRadius: 8,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+        plugins: { legend: { display: false } },
+      },
+    });
+
+    new Chart(document.getElementById("joinsLine"), {
+      type: "line",
+      data: {
+        labels: insight.joinLabels.length ? insight.joinLabels : ["No data"],
+        datasets: [
+          {
+            label: "New members",
+            data: insight.joinValues.length ? insight.joinValues : [0],
+            borderColor: colors[1],
+            backgroundColor: "rgba(15, 118, 110, 0.15)",
+            fill: true,
+            tension: 0.35,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      },
+    });
+
+    new Chart(document.getElementById("activityBar"), {
+      type: "bar",
+      data: {
+        labels: ["Feedback", "Open FB", "News", "Published"],
+        datasets: [
+          {
+            label: "Count",
+            data: [
+              insight.feedbackTotal,
+              insight.feedbackOpen,
+              insight.newsTotal,
+              insight.publishedNews,
+            ],
+            backgroundColor: [colors[7], colors[3], colors[4], colors[5]],
+            borderRadius: 8,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+        plugins: { legend: { display: false } },
+      },
+    });
+
+    const table = MV.createTableController({
+      perPage: 8,
+      getData: () =>
+        MV.getNormalUsers()
+          .slice()
+          .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+          .map((u) => ({
+            ...u,
+            status: u.status || "active",
+            setupLabel: MV.isFinanceSetupComplete(u.id) ? "Complete" : "Pending",
+          })),
+      searchKeys: ["fullName", "email", "phone", "setupLabel"],
+      paginationEl: "#pagination",
+      renderRows(rows) {
+        const body = document.getElementById("tbody");
+        if (!rows.length) {
+          body.innerHTML = '<tr><td colspan="6" class="empty-state">No members</td></tr>';
+          return;
+        }
+        body.innerHTML = rows
+          .map(
+            (u) =>
+              "<tr>" +
+              "<td>" +
+              (u.fullName || "—") +
+              "</td><td>" +
+              (u.email || "—") +
+              "</td><td>" +
+              (u.phone || "—") +
+              "</td><td>" +
+              MV.formatDate(u.createdAt) +
+              '</td><td><span class="badge ' +
+              (u.setupLabel === "Complete" ? "badge-success" : "badge-warning") +
+              '">' +
+              u.setupLabel +
+              '</span></td><td><span class="badge ' +
+              (u.status === "inactive" ? "badge-neutral" : "badge-success") +
+              '">' +
+              u.status +
+              "</span></td></tr>"
+          )
+          .join("");
+      },
+    });
+    table.bindSearch("#search");
+    table.bindFilter("#filterStatus", "status");
+    table.render();
+  })();
+  </script>
+</body>
+</html>

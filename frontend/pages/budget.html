@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header"><h1>Budget</h1><p>Set category limits and monitor spending</p></div>
+      <div class="cards" id="cards"></div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-bar"></i> Limit vs spent</h3>
+          <div class="chart-wrap"><canvas id="budgetBar"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3><i class="fas fa-chart-pie"></i> Budget allocation</h3>
+          <div class="chart-wrap"><canvas id="budgetPie"></canvas></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Budget categories</h2>
+          <button class="btn btn-danger btn-sm" id="clearAll"><i class="fas fa-trash"></i> Clear all</button>
+          <button class="btn btn-primary btn-sm" id="openAdd"><i class="fas fa-plus"></i> Add budget</button>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="Search category..." />
+          <select id="filterStatus">
+            <option value="">All</option>
+            <option value="ok">Within limit</option>
+            <option value="warn">Near limit</option>
+            <option value="over">Over budget</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Category</th><th>Limit</th><th>Spent</th><th>Remaining</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <h3 id="modalTitle">Add budget</h3>
+      <form id="form" novalidate>
+        <input type="hidden" id="editId" />
+        <div class="form-grid">
+          <div class="form-group"><label for="category">Category</label>
+            <select id="category"><option value="">Select</option><option>Food</option><option>Rent</option><option>Transport</option><option>Shopping</option><option>Utilities</option><option>Healthcare</option><option>Entertainment</option><option>Other</option></select>
+            <span class="field-error" id="categoryError"></span>
+          </div>
+          <div class="form-group"><label for="limit">Monthly limit (₹)</label><input type="number" id="limit" min="1" /><span class="field-error" id="limitError"></span></div>
+          <div class="form-group"><label for="note">Note</label><input id="note" /></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="closeModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({ page: "budget.html", title: "Budget" });
+    if (!user) throw new Error("auth");
+    const modal = document.getElementById("modal");
+
+    function spentFor(category) {
+      return MV.listFor(MV.KEYS.transactions)
+        .filter((t) => t.type === "expense" && t.category === category)
+        .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    }
+
+    function enrich() {
+      return MV.listFor(MV.KEYS.budgets).map((b) => {
+        const spent = spentFor(b.category);
+        const limit = Number(b.limit) || 0;
+        const remaining = limit - spent;
+        let status = "ok";
+        if (spent > limit) status = "over";
+        else if (spent >= limit * 0.8) status = "warn";
+        return { ...b, spent, remaining, status };
+      });
+    }
+
+    function refreshCards() {
+      const rows = enrich();
+      const totalLimit = rows.reduce((s, r) => s + (Number(r.limit) || 0), 0);
+      const totalSpent = rows.reduce((s, r) => s + r.spent, 0);
+      document.getElementById("cards").innerHTML = `
+        <div class="card"><div class="card-icon navy"><i class="fas fa-wallet"></i></div><div><h3>Total limits</h3><h2>${MV.formatINR(totalLimit)}</h2></div></div>
+        <div class="card"><div class="card-icon orange"><i class="fas fa-receipt"></i></div><div><h3>Total spent</h3><h2>${MV.formatINR(totalSpent)}</h2></div></div>
+        <div class="card"><div class="card-icon ${totalSpent > totalLimit ? "orange" : "green"}"><i class="fas fa-scale-balanced"></i></div><div><h3>Remaining</h3><h2>${MV.formatINR(totalLimit - totalSpent)}</h2></div></div>`;
+    }
+
+    function openModal(row) {
+      document.getElementById("modalTitle").textContent = row ? "Edit budget" : "Add budget";
+      document.getElementById("editId").value = row ? row.id : "";
+      document.getElementById("category").value = row ? row.category : "";
+      document.getElementById("limit").value = row ? row.limit : "";
+      document.getElementById("note").value = row ? row.note || "" : "";
+      modal.classList.add("open");
+    }
+    document.getElementById("openAdd").onclick = () => openModal(null);
+    document.getElementById("closeModal").onclick = () => modal.classList.remove("open");
+
+    const table = MV.createTableController({
+      perPage: 6,
+      getData: enrich,
+      searchKeys: ["category", "note"],
+      paginationEl: "#pagination",
+      renderRows(rows) {
+        const body = document.getElementById("tbody");
+        if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty-state">No budgets set</td></tr>'; return; }
+        body.innerHTML = rows.map((r) => `
+          <tr>
+            <td>${r.category}</td>
+            <td>${MV.formatINR(r.limit)}</td>
+            <td>${MV.formatINR(r.spent)}</td>
+            <td>${MV.formatINR(r.remaining)}</td>
+            <td><span class="badge ${r.status === "ok" ? "badge-success" : r.status === "warn" ? "badge-warning" : "badge-danger"}">${r.status}</span></td>
+            <td>
+              <button class="btn btn-outline btn-sm" data-edit="${r.id}"><i class="fas fa-pen"></i></button>
+              <button class="btn btn-danger btn-sm" data-del="${r.id}"><i class="fas fa-trash"></i></button>
+            </td>
+          </tr>`).join("");
+        body.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => openModal(MV.listFor(MV.KEYS.budgets).find((x) => String(x.id) === String(b.dataset.edit))));
+        body.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => {
+          MV.confirmDelete("Are you sure you want to delete this budget?").then(async (ok) => {
+            if (!ok) return;
+            await MV.deleteItem(MV.KEYS.budgets, b.dataset.del);
+            refreshCards();
+            table.render();
+          });
+        });
+      },
+    });
+    table.bindSearch("#search");
+    table.bindFilter("#filterStatus", "status");
+    refreshCards();
+    table.render();
+
+    (function drawBudgetCharts() {
+      const rows = enrich();
+      const labels = rows.map((r) => r.category);
+      const limits = rows.map((r) => r.limit);
+      const spents = rows.map((r) => r.spent);
+      new Chart(document.getElementById("budgetBar"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "Limit", data: limits, backgroundColor: MV.CHART_COLORS[1], borderRadius: 6 },
+            { label: "Spent", data: spents, backgroundColor: MV.CHART_COLORS[3], borderRadius: 6 },
+          ],
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } },
+      });
+      new Chart(document.getElementById("budgetPie"), {
+        type: "doughnut",
+        data: {
+          labels: labels.length ? labels : ["None"],
+          datasets: [{ data: limits.length ? limits : [1], backgroundColor: MV.CHART_COLORS, borderWidth: 0 }],
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } } },
+      });
+    })();
+
+    document.getElementById("form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const payload = {
+        category: document.getElementById("category").value,
+        limit: Number(document.getElementById("limit").value),
+        note: document.getElementById("note").value.trim(),
+      };
+      const errors = {
+        category: MV.Validators.required(payload.category, "Category"),
+        limit: MV.Validators.amount(document.getElementById("limit").value, "Limit"),
+      };
+      if (!errors.limit && payload.limit <= 0) errors.limit = "Limit must be greater than 0";
+      Object.keys(errors).forEach((k) => MV.showFieldError(k, errors[k]));
+      if (Object.values(errors).some(Boolean)) return;
+      const id = document.getElementById("editId").value;
+      if (id) await MV.updateItem(MV.KEYS.budgets, id, payload);
+      else await MV.addItem(MV.KEYS.budgets, payload);
+      modal.classList.remove("open");
+      refreshCards();
+      table.render();
+    });
+
+    document.getElementById("clearAll").onclick = function () {
+      const count = MV.listFor(MV.KEYS.budgets).length;
+      if (!count) {
+        MV.showNotice("There are no budgets to clear.", "Clear All");
+        return;
+      }
+      MV.confirmDelete("Clear all " + count + " budget" + (count === 1 ? "" : "s") + "? This cannot be undone.").then(async (ok) => {
+        if (!ok) return;
+        await MV.saveFor(MV.KEYS.budgets, []);
+        location.reload();
+      });
+    };
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Feedback | MicroVault</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+<body>
+  <div class="dashboard">
+    <div class="main-content">
+      <div class="page-header">
+        <h1>Feedback</h1>
+        <p>Send feedback, update it anytime, and keep a full history of your submissions</p>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>My feedback history</h2>
+          <button class="btn btn-primary btn-sm" id="openAdd"><i class="fas fa-plus"></i> Send feedback</button>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="Search feedback..." />
+          <select id="filterStatus">
+            <option value="">All statuses</option>
+            <option value="open">Open</option>
+            <option value="in-review">In review</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
+          <select id="filterCategory">
+            <option value="">All categories</option>
+            <option value="General">General</option>
+            <option value="Bug">Bug</option>
+            <option value="Feature">Feature</option>
+            <option value="UI">UI</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="feed-stack" id="feed"></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <h3 id="modalTitle">Send feedback</h3>
+      <form id="feedbackForm" novalidate>
+        <input type="hidden" id="editId" />
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="subject">Subject</label>
+            <input id="subject" maxlength="120" />
+            <span class="field-error" id="subjectError"></span>
+          </div>
+          <div class="form-group">
+            <label for="category">Category</label>
+            <select id="category">
+              <option value="">Select</option>
+              <option>General</option>
+              <option>Bug</option>
+              <option>Feature</option>
+              <option>UI</option>
+              <option>Other</option>
+            </select>
+            <span class="field-error" id="categoryError"></span>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label for="message">Message</label>
+            <textarea id="message" rows="5" maxlength="1000"></textarea>
+            <span class="field-error" id="messageError"></span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="closeModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="historyModal">
+    <div class="modal">
+      <h3>Feedback history</h3>
+      <p id="historyMeta" style="color:var(--muted);margin-bottom:12px"></p>
+      <ul class="timeline" id="historyBody"></ul>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="closeHistory">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/sidebar.js"></script>
+  <script>
+  (async function () {
+    const user = await MVSidebar.initLayout({
+      page: "feedback.html",
+      title: "Feedback",
+      roles: [MV.ROLES.USER],
+      denyUrl: MV.getHomePage(MV.getCurrentUser() && MV.getCurrentUser().role),
+    });
+    if (!user) throw new Error("auth");
+
+    const modal = document.getElementById("modal");
+    const historyModal = document.getElementById("historyModal");
+
+    function statusBadge(status) {
+      if (status === "resolved") return "badge-success";
+      if (status === "in-review") return "badge-warning";
+      if (status === "closed") return "badge-neutral";
+      return "badge-info";
+    }
+
+    function openModal(row) {
+      document.getElementById("modalTitle").textContent = row ? "Edit feedback" : "Send feedback";
+      document.getElementById("editId").value = row ? row.id : "";
+      document.getElementById("subject").value = row ? row.subject : "";
+      document.getElementById("category").value = row ? row.category : "";
+      document.getElementById("message").value = row ? row.message : "";
+      ["subject", "category", "message"].forEach((k) => MV.showFieldError(k, ""));
+      modal.classList.add("open");
+    }
+
+    function openHistory(row) {
+      document.getElementById("historyMeta").textContent =
+        (row.subject || "") + " · " + (row.category || "") + " · " + (row.status || "");
+      const history = MV.getFeedbackHistory(row.id);
+      const body = document.getElementById("historyBody");
+      if (!history.length) {
+        body.innerHTML = '<li><strong>No history yet</strong><p>Changes will appear here.</p></li>';
+      } else {
+        body.innerHTML = history
+          .map(
+            (h) =>
+              "<li><strong>" +
+              (h.action || "update") +
+              "</strong><small>" +
+              MV.formatDate(h.at) +
+              " · " +
+              (h.by || "—") +
+              "</small><p>" +
+              (h.note || "") +
+              "</p></li>"
+          )
+          .join("");
+      }
+      historyModal.classList.add("open");
+    }
+
+    document.getElementById("openAdd").onclick = () => openModal(null);
+    document.getElementById("closeModal").onclick = () => modal.classList.remove("open");
+    document.getElementById("closeHistory").onclick = () => historyModal.classList.remove("open");
+
+    const table = MV.createTableController({
+      perPage: 5,
+      getData: () => MV.getMyFeedback(),
+      searchKeys: ["subject", "category", "message", "status"],
+      paginationEl: "#pagination",
+      renderRows(rows) {
+        const feed = document.getElementById("feed");
+        if (!rows.length) {
+          feed.innerHTML =
+            '<div class="empty-feed"><i class="fas fa-comment-dots"></i>No feedback yet — send your first note</div>';
+          return;
+        }
+        feed.innerHTML = rows
+          .map((f) => {
+            const openClass = f.status === "open" || f.status === "in-review" ? " is-open" : "";
+            return (
+              '<article class="feed-item' +
+              openClass +
+              '">' +
+              '<div class="feed-ico feedback"><i class="fas fa-comment-dots"></i></div>' +
+              '<div class="feed-body">' +
+              '<div class="feed-top"><h3 class="feed-title">' +
+              (f.subject || "Feedback") +
+              '</h3><span class="badge badge-neutral">' +
+              (f.category || "") +
+              '</span><span class="badge ' +
+              statusBadge(f.status) +
+              '">' +
+              (f.status || "open") +
+              "</span></div>" +
+              '<p class="feed-text clamp">' +
+              (f.message || "") +
+              "</p>" +
+              '<div class="feed-meta"><span><i class="fas fa-calendar-day"></i>' +
+              MV.formatDate(f.createdAt) +
+              "</span></div></div>" +
+              '<div class="feed-actions">' +
+              '<button class="btn btn-outline btn-sm" data-hist="' +
+              f.id +
+              '" title="History"><i class="fas fa-clock-rotate-left"></i></button>' +
+              '<button class="btn btn-outline btn-sm" data-edit="' +
+              f.id +
+              '"><i class="fas fa-pen"></i></button>' +
+              '<button class="btn btn-danger btn-sm" data-del="' +
+              f.id +
+              '"><i class="fas fa-trash"></i></button>' +
+              "</div></article>"
+            );
+          })
+          .join("");
+
+        feed.querySelectorAll("[data-edit]").forEach((b) => {
+          b.onclick = () => openModal(MV.getMyFeedback().find((x) => String(x.id) === String(b.dataset.edit)));
+        });
+        feed.querySelectorAll("[data-hist]").forEach((b) => {
+          b.onclick = () => {
+            const row = MV.listAllFeedback().find((x) => x.id === b.dataset.hist);
+            if (row) openHistory(row);
+          };
+        });
+        feed.querySelectorAll("[data-del]").forEach((b) => {
+          b.onclick = () => {
+            MV.confirmDelete("Delete this feedback? It will remain in admin history.").then(async (ok) => {
+              if (!ok) return;
+              await MV.deleteFeedback(b.dataset.del);
+              table.render();
+            });
+          };
+        });
+      },
+    });
+    table.bindSearch("#search");
+    table.bindFilter("#filterStatus", "status");
+    table.bindFilter("#filterCategory", "category");
+    table.render();
+
+    document.getElementById("feedbackForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const payload = {
+        subject: document.getElementById("subject").value.trim(),
+        category: document.getElementById("category").value,
+        message: document.getElementById("message").value.trim(),
+      };
+      const errors = {
+        subject: MV.Validators.required(payload.subject, "Subject"),
+        category: MV.Validators.required(payload.category, "Category"),
+        message: MV.Validators.required(payload.message, "Message"),
+      };
+      if (!errors.message && payload.message.length < 10) {
+        errors.message = "Message must be at least 10 characters";
+      }
+      Object.keys(errors).forEach((k) => MV.showFieldError(k, errors[k]));
+      if (Object.values(errors).some(Boolean)) return;
+
+      const id = document.getElementById("editId").value;
+      const result = id ? await MV.updateFeedback(id, payload) : await MV.addFeedback(payload);
+      if (!result.ok) {
+        MV.showNotice(result.message || "Could not save feedback", "Feedback");
+        return;
+      }
+      modal.classList.remove("open");
+      table.render();
+    });
+  })();
+  </script>
+</body>
+</html>
