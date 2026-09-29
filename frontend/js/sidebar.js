@@ -236,9 +236,11 @@
       }
     }
 
-    if (MV.isFinanceSetupComplete(user.id)) {
-      MV.clearSetupSkipped(user.id);
-      MV.ensureDemoData(user.id);
+    const fresh = MV.getCurrentUser() || user;
+
+    if (MV.isFinanceSetupComplete(fresh.id)) {
+      MV.clearSetupSkipped(fresh.id);
+      MV.ensureDemoData(fresh.id);
     }
 
     MV.bindPasswordToggles();
@@ -257,7 +259,7 @@
     MV.bindMaxDate('input[type="date"]');
     document.body.classList.add("page-ready");
 
-    if (MV.needsFinanceSetup(user) && page === "dashboard.html") {
+    if (MV.needsFinanceSetup(fresh) && page === "dashboard.html") {
       setTimeout(() => {
         MV.promptFinanceSetup({
           setupUrl: "personal-financial-setup.html",
@@ -267,7 +269,7 @@
       }, 250);
     }
 
-    return user;
+    return fresh;
   }
 
   window.MVSidebar = { initLayout, renderSidebar };

@@ -1025,8 +1025,36 @@
   ensureSeed();
 
   async function bootstrap() {
-    if (!authToken()) return null;
-    const data = apiData(await apiRequest("/bootstrap"));
+    const user = getCurrentUser();
+    if (!user || !user.email) return null;
+
+    const params = new URLSearchParams();
+    params.set("email", user.email);
+    const id = String(user.id || "");
+    if (/^[0-9a-fA-F-]{36}$/.test(id)) params.set("userId", id);
+
+    const response = await fetch("http://localhost:8082/api/bootstrap?" + params.toString(), {
+      headers: { Accept: "application/json" },
+    });
+    const text = await response.text();
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch { payload = { message: text }; }
+    if (!response.ok) {
+      const err = new Error((payload && payload.message) || "Could not load dashboard");
+      err.status = response.status;
+      throw err;
+    }
+
+    const data = apiData(payload) || {};
+    if (data.user) {
+      set(KEYS.currentUser, Object.assign({}, user, {
+        fullName: data.user.fullName || user.fullName,
+        email: data.user.email || user.email,
+        phone: data.user.phone || user.phone,
+        role: data.user.role || user.role,
+        status: data.user.status || user.status,
+      }));
+    }
     cache.finance = data.finance || null;
     cache.transactions = data.transactions || [];
     cache.goals = data.goals || [];
@@ -1043,7 +1071,6 @@
     cache.admins = data.admins || [];
     cache.insights = data.adminInsights || null;
     cache.setupSkipped = !!data.setupSkipped;
-    if (data.user) set(KEYS.currentUser, data.user);
     return data;
   }
 
