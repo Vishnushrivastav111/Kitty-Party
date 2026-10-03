@@ -1,29 +1,19 @@
 package com.microvault.dashboard.serviceimpl;
 
-import com.microvault.dashboard.exception.UserNotFoundException;
-import com.microvault.dashboard.exception.ValidationException;
-import com.microvault.dashboard.model.BudgetItem;
-import com.microvault.dashboard.model.DashboardData;
-import com.microvault.dashboard.model.FinanceSnapshot;
-import com.microvault.dashboard.model.GoalItem;
-import com.microvault.dashboard.model.Member;
-import com.microvault.dashboard.model.SavingItem;
-import com.microvault.dashboard.model.TransactionItem;
-import com.microvault.dashboard.repository.BudgetItemRepository;
-import com.microvault.dashboard.repository.FinanceSnapshotRepository;
-import com.microvault.dashboard.repository.GoalItemRepository;
-import com.microvault.dashboard.repository.MemberRepository;
-import com.microvault.dashboard.repository.SavingItemRepository;
-import com.microvault.dashboard.repository.TransactionItemRepository;
-import org.junit.jupiter.api.BeforeEach;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.microvault.dashboard.client.AdminClient;
+import com.microvault.dashboard.client.AuthClient;
+import com.microvault.dashboard.client.FinanceClient;
+import com.microvault.dashboard.dto.DashboardResponse;
+import com.microvault.dashboard.exception.ResourceNotFoundException;
+import com.microvault.dashboard.exception.UnauthorizedException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,96 +24,64 @@ import static org.mockito.Mockito.when;
 class DashboardServiceImplTest {
 
     @Mock
-    private MemberRepository memberRepository;
-
+    private AuthClient authClient;
     @Mock
-    private FinanceSnapshotRepository financeSnapshotRepository;
-
+    private FinanceClient financeClient;
     @Mock
-    private TransactionItemRepository transactionItemRepository;
+    private AdminClient adminClient;
 
-    @Mock
-    private GoalItemRepository goalItemRepository;
+    @InjectMocks
+    private DashboardServiceImpl dashboardService;
 
-    @Mock
-    private SavingItemRepository savingItemRepository;
+    private final ObjectMapper mapper = new ObjectMapper();
 
-    @Mock
-    private BudgetItemRepository budgetItemRepository;
+    @Test
+    void shouldCombineTheWorkspace() {
+        UUID id = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        ObjectNode user = mapper.createObjectNode();
+        user.put("id", id.toString());
+        user.put("fullName", "Aarav Sharma");
+        user.put("role", "user");
 
-    private DashboardServiceImpl service;
+        ObjectNode financeProfile = mapper.createObjectNode();
+        financeProfile.put("monthlyIncome", 50000);
+        financeProfile.put("monthlyExpenses", 20000);
+        financeProfile.put("monthlyBudget", 15000);
 
-    private UUID userId;
+        ObjectNode finance = mapper.createObjectNode();
+        finance.set("finance", financeProfile);
+        finance.set("transactions", mapper.createArrayNode());
+        finance.set("goals", mapper.createArrayNode());
+        finance.set("savings", mapper.createArrayNode().add(mapper.createObjectNode().put("amount", 1000)));
+        finance.set("budgets", mapper.createArrayNode());
+        finance.put("setupSkipped", false);
 
-    @BeforeEach
-    void setUp() {
-        service = new DashboardServiceImpl(
-                memberRepository,
-                financeSnapshotRepository,
-                transactionItemRepository,
-                goalItemRepository,
-                savingItemRepository,
-                budgetItemRepository);
-        userId = UUID.fromString("a3333333-3333-4333-8333-333333333333");
+        ObjectNode admin = mapper.createObjectNode();
+        admin.set("notifications", mapper.createArrayNode());
+        admin.set("feedback", mapper.createArrayNode());
+        admin.set("news", mapper.createArrayNode());
+
+        when(authClient.currentUser("Bearer token")).thenReturn(user);
+        when(financeClient.workspace(id)).thenReturn(finance);
+        when(adminClient.workspace(id, "user")).thenReturn(admin);
+
+        DashboardResponse response = dashboardService.load("Bearer token");
+
+        assertEquals("Aarav Sharma", response.getUser().path("fullName").asText());
+        assertEquals(1000, response.getStats().getTotalSavings().intValue());
+        assertEquals(15000, response.getStats().getMonthBudget().intValue());
     }
 
     @Test
-    void loadReturnsNameAndDashboardNumbers() {
-        Member member = new Member();
-        member.setId(userId);
-        member.setFullName("Aarav Sharma");
-        member.setEmail("aarav.sharma@example.com");
-        when(memberRepository.findByEmailIgnoreCaseAndDeletedFalse("aarav.sharma@example.com"))
-                .thenReturn(Optional.of(member));
-
-        FinanceSnapshot finance = new FinanceSnapshot();
-        finance.setMonthlyIncome(new BigDecimal("85000"));
-        finance.setMonthlyExpenses(new BigDecimal("42000"));
-        finance.setMonthlyBudget(new BigDecimal("40000"));
-        when(financeSnapshotRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(finance));
-
-        TransactionItem expense = new TransactionItem();
-        expense.setType("expense");
-        expense.setAmount(new BigDecimal("4200"));
-        expense.setCategory("Food");
-        when(transactionItemRepository.findByUserIdAndDeletedFalseOrderByDateDescCreatedAtDesc(userId))
-                .thenReturn(List.of(expense));
-
-        GoalItem goal = new GoalItem();
-        goal.setTitle("Emergency fund");
-        goal.setStatus("active");
-        goal.setTarget(new BigDecimal("200000"));
-        goal.setSaved(new BigDecimal("75000"));
-        when(goalItemRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)).thenReturn(List.of(goal));
-
-        SavingItem saving = new SavingItem();
-        saving.setAmount(new BigDecimal("8000"));
-        when(savingItemRepository.findByUserIdAndDeletedFalseOrderByDateDesc(userId)).thenReturn(List.of(saving));
-
-        BudgetItem budget = new BudgetItem();
-        budget.setLimit(new BigDecimal("12000"));
-        when(budgetItemRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of(budget));
-
-        DashboardData data = service.load(null, "aarav.sharma@example.com");
-
-        assertEquals("Aarav Sharma", data.getUser().getFullName());
-        assertEquals(new BigDecimal("85000"), data.getFinance().getMonthlyIncome());
-        assertEquals(new BigDecimal("8000"), data.getStats().getTotalSavings());
-        assertEquals(new BigDecimal("4200"), data.getStats().getSpent());
-        assertEquals(new BigDecimal("40000"), data.getStats().getMonthBudget());
-        assertEquals(1, data.getStats().getActiveGoals());
-        assertEquals(1, data.getTransactions().size());
+    void shouldRequireAnIdentity() {
+        when(authClient.currentUser(null)).thenThrow(new UnauthorizedException("Login is required"));
+        assertThrows(UnauthorizedException.class, () -> dashboardService.load(null));
     }
 
     @Test
-    void loadRequiresAnEmailOrUserId() {
-        assertThrows(ValidationException.class, () -> service.load(null, "  "));
-    }
-
-    @Test
-    void unknownEmailReturnsNotFound() {
-        when(memberRepository.findByEmailIgnoreCaseAndDeletedFalse("missing@example.com")).thenReturn(Optional.empty());
-
-        assertThrows(UserNotFoundException.class, () -> service.load(null, "missing@example.com"));
+    void shouldSurfaceAMissingUser() {
+        when(authClient.currentUser("Bearer token"))
+                .thenThrow(new ResourceNotFoundException("No user found for this dashboard"));
+        assertThrows(ResourceNotFoundException.class, () -> dashboardService.load("Bearer token"));
     }
 }

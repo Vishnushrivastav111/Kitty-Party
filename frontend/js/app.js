@@ -24,9 +24,7 @@
 
   const ROLES = { USER: "user", ADMIN: "admin", SUPERADMIN: "superadmin" };
 
-  const API_DEFAULT = (location.protocol === "http:" || location.protocol === "https:")
-    ? location.origin + "/api"
-    : "http://localhost:8080/api";
+  const API_DEFAULT = "http://localhost:8080/api";
 
   function apiBase() {
     return (global.MV_API_BASE || API_DEFAULT).replace(/\/$/, "");
@@ -1033,7 +1031,7 @@
     const id = String(user.id || "");
     if (/^[0-9a-fA-F-]{36}$/.test(id)) params.set("userId", id);
 
-    const response = await fetch("http://localhost:8082/api/bootstrap?" + params.toString(), {
+    const response = await fetch(apiBase() + "/bootstrap?" + params.toString(), {
       headers: { Accept: "application/json" },
     });
     const text = await response.text();

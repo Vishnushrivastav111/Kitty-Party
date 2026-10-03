@@ -6,9 +6,6 @@
 
   function apiBase() {
     if (global.MV_API_BASE) return global.MV_API_BASE.replace(/\/$/, "");
-    if (location.protocol === "http:" || location.protocol === "https:") {
-      return location.origin + "/api";
-    }
     return "http://localhost:8080/api";
   }
 

@@ -1,7 +1,5 @@
 # Maven build output
-backend/target/
-finance-profile-service/target/
-dashboard-service/target/
+**/target/
 
 # Compiled class files
 *.class

@@ -129,14 +129,7 @@
       if (Object.values(errors).some(Boolean)) return;
 
       const result = MV.canAfford(amount);
-      document.getElementById("result").innerHTML = `
-        <div class="alert-box ${result.level}">
-          <strong>${result.verdict}</strong><br />
-          Estimated available capacity: ${MV.formatINR(result.available)} · Requested: ${MV.formatINR(result.amount)}<br />
-          Income ${MV.formatINR(result.income)} · Expenses ${MV.formatINR(result.expenses)} · Savings ${MV.formatINR(result.totalSavings)}
-        </div>`;
-
-      await MV.addItem(MV.KEYS.affordChecks, {
+      const row = await MV.addItem(MV.KEYS.affordChecks, {
         itemName,
         amount: result.amount,
         available: Math.round(result.available),
@@ -145,6 +138,14 @@
         priority,
         date: checkDate,
       });
+      const plan = (row.plan || []).map((step) => "<li>" + step + "</li>").join("");
+      document.getElementById("result").innerHTML = `
+        <div class="alert-box ${row.level || result.level}">
+          <strong>${row.verdict || result.verdict}</strong><br />
+          Estimated available capacity: ${MV.formatINR(row.available != null ? row.available : result.available)} · Requested: ${MV.formatINR(row.amount || result.amount)}<br />
+          ${row.suggestion || ""}
+          ${plan ? "<ul style='margin:8px 0 0 18px'>" + plan + "</ul>" : ""}
+        </div>`;
       table.render();
     });
 

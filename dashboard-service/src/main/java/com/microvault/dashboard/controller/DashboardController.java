@@ -1,14 +1,15 @@
 package com.microvault.dashboard.controller;
 
-import com.microvault.dashboard.model.DashboardData;
+import com.microvault.dashboard.dto.DashboardResponse;
 import com.microvault.dashboard.service.DashboardService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.UUID;
-
 @RestController
+@Tag(name = "Dashboard", description = "Combined view for the signed-in member or admin")
 public class DashboardController {
 
     private final DashboardService dashboardService;
@@ -17,9 +18,9 @@ public class DashboardController {
         this.dashboardService = dashboardService;
     }
 
-    @GetMapping("/api/bootstrap")
-    public DashboardData bootstrap(@RequestParam(required = false) UUID userId,
-                                   @RequestParam(required = false) String email) {
-        return dashboardService.load(userId, email);
+    @GetMapping("/api/dashboard")
+    @Operation(summary = "Load the dashboard", description = "Combines the signed-in user's finance workspace, admin workspace, and card numbers.")
+    public DashboardResponse load(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        return dashboardService.load(authorization);
     }
 }

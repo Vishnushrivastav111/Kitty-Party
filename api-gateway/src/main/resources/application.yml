@@ -1,0 +1,31 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+      routes:
+        - id: auth-service
+          uri: ${auth-service.url:http://localhost:8081}
+          predicates:
+            - Path=/api/auth/**,/api/users/**
+        - id: finance-service
+          uri: ${finance-service.url:http://localhost:8082}
+          predicates:
+            - Path=/api/finance,/api/finance/**,/api/transactions,/api/transactions/**,/api/budgets,/api/budgets/**,/api/goals,/api/goals/**,/api/savings,/api/savings/**,/api/reports,/api/reports/**,/api/affordability,/api/affordability/**
+        - id: dashboard-service
+          uri: ${dashboard-service.url:http://localhost:8083}
+          predicates:
+            - Path=/api/dashboard
+        - id: admin-service
+          uri: ${admin-service.url:http://localhost:8084}
+          predicates:
+            - Path=/api/admin,/api/admin/**,/api/feedback,/api/feedback/**,/api/notifications,/api/notifications/**

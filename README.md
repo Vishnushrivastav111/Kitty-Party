@@ -1,186 +1,207 @@
 # MicroVault
 
-Personal finance workspace.
-
-Sprint 1 keeps the existing HTML/CSS/JavaScript frontend and adds a **plain Java + JDBC + PostgreSQL** backend foundation.
-
-This is not a complete production application. There is no Spring, Hibernate, JPA or REST controller layer.
-
-## Project structure
+Personal finance workspace. The HTML frontend talks to one API gateway. The gateway forwards each request to a small set of Spring Boot services. All of those services use the same PostgreSQL database.
 
 ```text
-MicroVault/
-│
-├── frontend/
-│   ├── html/          login, register, landing, terms, forgot-password
-│   ├── css/           page and shared styles
-│   ├── js/            app.js, api.js, sidebar scripts
-│   ├── assets/        images and other static files
-│   └── pages/         dashboard, transactions, goals, budgets, admin pages
-│
-├── backend/
-│   ├── pom.xml
-│   ├── README.md
-│   ├── sql/
-│   │   ├── 01_create_database.sql
-│   │   ├── 02_create_tables.sql
-│   │   ├── 03_constraints.sql
-│   │   ├── 04_indexes.sql
-│   │   ├── 05_seed_data.sql
-│   │   └── 06_test_queries.sql
-│   └── src/
-│       ├── main/java/com/microvault/
-│       │   ├── model/
-│       │   ├── dto/
-│       │   ├── dao/
-│       │   ├── daoimpl/
-│       │   ├── service/
-│       │   ├── serviceimpl/
-│       │   ├── business/
-│       │   ├── config/
-│       │   ├── util/
-│       │   └── exception/
-│       ├── main/resources/database.properties
-│       └── test/java/com/microvault/
-│           ├── dao/
-│           ├── service/
-│           ├── business/
-│           └── support/
-│
-└── README.md
+                    ┌─────────────────┐
+                    │    Frontend     │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │   API Gateway   │
+                    │     :8080       │
+                    └────────┬────────┘
+                             │
+          ┌──────────────────┼──────────────────┐
+          │                  │                  │
+          ▼                  ▼                  ▼
+   Auth Service       Finance Service    Dashboard Service
+      :8081               :8082               :8083
+          │                  │                  │
+          └──────────────────┼──────────────────┘
+                             │
+                             ▼
+                       PostgreSQL
+                      Single Database
+
+                    Admin Service :8084
 ```
 
-Frontend files stay in `frontend/`. Java files stay in `backend/`. They are not mixed.
+There is no RabbitMQ, Kafka, Redis, Eureka, or a separate database per service.
 
-## Frontend
+## Services
 
-The existing UI was kept as-is.
+| Service | Port | Owns |
+|---|---|---|
+| API Gateway | 8080 | Routing only |
+| Auth Service | 8081 | `users`, login, registration, OTP password reset |
+| Finance Service | 8082 | `finance_profiles`, `transactions`, `budgets`, `goals`, `savings_entries`, `affordability_checks`, `reports` |
+| Dashboard Service | 8083 | No tables. It calls Auth, Finance and Admin and builds the dashboard payload |
+| Admin Service | 8084 | `notifications`, `feedback`, `feedback_history`, `news`, plus user administration through Auth |
 
-| Folder | Contents |
+A service never imports another service's entity or repository classes. When one service needs data that belongs to another, it calls that service over HTTP with Spring `RestClient`.
+
+## Affordability and the suggested plan
+
+Finance Service works this out when you check a purchase:
+
+1. Monthly surplus = monthly income − monthly expenses. If that number is negative, it is treated as zero.
+2. Available capacity = surplus + 30% of the member's savings entries.
+3. Spend ratio = purchase amount ÷ available capacity.
+
+| Ratio | Verdict | What the plan says |
+|---|---|---|
+| 30% or less | Comfortably affordable | Buy now and keep the rest for regular bills |
+| 60% or less | Affordable with caution | Buy only if it is urgent, otherwise wait for the next pay cycle |
+| Up to 100% | Tight — consider delaying | Delay it and put the surplus into savings first |
+| Above 100% | Not recommended | Do not buy it. The response includes the shortfall to save |
+
+`POST /api/affordability/check` stores the check and returns `verdict`, `level`, `available`, `suggestion` and `plan`.
+
+Budget usage is the expense total in that category compared with the monthly limit: within budget, close to the limit (80% or more), or over budget. Goal progress is saved amount ÷ target amount.
+
+## Password reset
+
+`POST /api/auth/forgot/send-otp` creates a 6-digit code that expires in 10 minutes.
+
+Set these when you want the code emailed:
+
+```text
+MAIL_ENABLED=true
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_USERNAME=...
+MAIL_PASSWORD=...
+MAIL_FROM=noreply@microvault.local
+```
+
+When `MAIL_ENABLED` is false, the code is not emailed. The response includes `data.demoOtp` so you can finish the reset on a local machine. `POST /api/auth/forgot/reset` checks the code and stores a new PBKDF2 password hash.
+
+## API Gateway routes
+
+| Path | Service |
 |---|---|
-| `frontend/html` | Public pages: landing, login, register, terms, forgot-password |
-| `frontend/pages` | Signed-in member and admin pages |
-| `frontend/css` | Stylesheets |
-| `frontend/js` | Shared JavaScript (`app.js`, `api.js`, sidebar) |
-| `frontend/assets` | Images and other static files |
+| `/api/auth/**`, `/api/users/**` | Auth :8081 |
+| `/api/finance/**`, `/api/transactions/**`, `/api/budgets/**`, `/api/goals/**`, `/api/savings/**`, `/api/reports/**`, `/api/affordability/**` | Finance :8082 |
+| `/api/dashboard/**`, `/api/bootstrap` | Dashboard :8083 |
+| `/api/admin/**`, `/api/feedback/**`, `/api/notifications/**` | Admin :8084 |
 
-Open the HTML files in a browser to view the current UI. The JavaScript already talks to `/api/...`. Sprint 1 does **not** add that HTTP layer. The backend in this sprint is the Java/JDBC foundation only.
+The frontend always calls `http://localhost:8080/api`.
 
-## Backend
+## Main endpoints
 
-Package layout:
+### Auth
+
+```http
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/logout
+GET  /api/auth/session
+POST /api/auth/forgot/send-otp
+POST /api/auth/forgot/reset
+GET  /api/users/lookup
+GET  /api/users/{id}
+PUT  /api/users/me
+PUT  /api/users/me/password
+```
+
+Login returns `{ "ok": true, "token": "...", "user": { ... } }`. Later calls send `Authorization: Bearer <token>`.
+
+### Finance
+
+```http
+PUT  /api/finance
+POST /api/finance/skip
+GET  /api/finance/profile/{userId}
+GET  /api/finance/profile/{userId}/summary
+
+GET  /api/transactions
+POST /api/transactions
+GET  /api/transactions/{id}
+PUT  /api/transactions/{id}
+DELETE /api/transactions/{id}
+
+GET  /api/budgets
+POST /api/budgets
+PUT  /api/budgets/{id}
+
+GET  /api/goals
+POST /api/goals
+PUT  /api/goals/{id}
+
+GET  /api/savings
+POST /api/savings
+
+POST /api/affordability/check
+POST /api/reports/generate
+```
+
+### Dashboard
+
+```http
+GET /api/bootstrap?email={email}
+GET /api/dashboard
+GET /api/dashboard/summary
+GET /api/dashboard/stats
+```
+
+### Admin
+
+```http
+GET  /api/admin/users
+PUT  /api/admin/users/{id}
+DELETE /api/admin/users/{id}
+POST /api/admin/admins
+GET  /api/admin/feedback
+GET  /api/admin/news
+POST /api/admin/news
+POST /api/feedback
+GET  /api/feedback/{id}/history
+PUT  /api/notifications/{id}/read
+PUT  /api/notifications/read-all
+```
+
+Errors look like this:
+
+```json
+{
+  "timestamp": "2026-10-03T14:00:00",
+  "status": 404,
+  "message": "Transaction not found",
+  "path": "/api/transactions/10"
+}
+```
+
+Records are soft-deleted (`is_deleted`, `deleted_at`). Normal reads ignore deleted rows.
+
+## Database
+
+One PostgreSQL database. Hibernate does not create or change tables (`ddl-auto=none`).
+
+The scripts in `docs/sql` match the existing tables. Run them only on a new database, in this order:
 
 ```text
-com.microvault.model          one POJO per table
-com.microvault.dto            transfer objects, no password hashes
-com.microvault.dao            interfaces
-com.microvault.daoimpl        JDBC PreparedStatement implementations
-com.microvault.service        business interfaces
-com.microvault.serviceimpl    validation, hashing, DAO coordination
-com.microvault.business       GoalBO, BudgetBO, AffordabilityBO, ReportBO, TransactionBO
-com.microvault.config         DatabaseConfig
-com.microvault.util           DBConnection, PasswordUtil
-com.microvault.exception      DatabaseException, ValidationException, UserNotFoundException
+docs/sql/01_create_database.sql
+docs/sql/02_create_tables.sql
+docs/sql/03_constraints.sql
+docs/sql/04_indexes.sql
+docs/sql/05_seed_data.sql
 ```
 
-Layering:
+`02_create_tables.sql` drops and recreates tables. Do not run it against a database you need to keep.
+
+Connection settings come from the environment. The defaults match the shared development database already used by this project:
 
 ```text
-Service interface
-    -> DAO interface
-        -> DAO implementation
-            -> JDBC PreparedStatement
-                -> PostgreSQL
+DB_URL=jdbc:postgresql://10.23.240.38:5432/indr_aug13_smartsavingsandinvestment_dev?connectTimeout=5
+DB_USERNAME=indr_aug13_smartsavingsandinvestment_dev
+DB_PASSWORD=...
 ```
 
-Services receive the DAO interface through the constructor. They do not contain SQL. DAOs do not contain business rules.
+Override `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` for any other database. Do not put a production password in source control.
 
-## Entities and tables
-
-| Entity | Table |
-|---|---|
-| User | users |
-| FinanceProfile | finance_profiles |
-| Transaction | transactions |
-| Goal | goals |
-| SavingsEntry | savings_entries |
-| Budget | budgets |
-| AffordabilityCheck | affordability_checks |
-| Notification | notifications |
-| Report | reports |
-| Feedback | feedback |
-| FeedbackHistory | feedback_history |
-| News | news |
-
-Every table uses:
-
-- `id UUID PRIMARY KEY`
-- `created_at`, `updated_at`
-- `is_deleted BOOLEAN DEFAULT FALSE`
-- `deleted_at TIMESTAMP`
-
-Foreign keys:
-
-```text
-User
-  -> FinanceProfile
-  -> Transaction
-  -> Goal
-  -> SavingsEntry
-  -> Budget
-  -> AffordabilityCheck
-  -> Notification
-  -> Report
-  -> Feedback
-  -> News (author)
-
-Feedback
-  -> FeedbackHistory
-```
-
-## Dependencies
-
-Install these before you compile or run tests:
-
-1. **JDK 17 or newer**
-2. **Apache Maven 3.8 or newer**
-3. **PostgreSQL 13 or newer** (or access to the shared development database)
-
-Maven downloads the only two libraries the project needs:
-
-- `org.postgresql:postgresql:42.7.4`
-- `org.junit.jupiter:junit-jupiter:5.10.2` (test scope)
-
-## Database setup
-
-Default development connection (also stored in `backend/src/main/resources/database.properties`):
-
-| Setting | Value |
-|---|---|
-| Host | 10.23.240.38 |
-| Port | 5432 |
-| Database | indr_aug13_smartsavingsandinvestment_dev |
-| Username | indr_aug13_smartsavingsandinvestment_dev |
-| Password | TCS@123 |
-
-Override with environment variables if needed: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`.
-
-Run the SQL scripts in order while connected to that database:
-
-```powershell
-cd backend
-psql -h 10.23.240.38 -p 5432 -U indr_aug13_smartsavingsandinvestment_dev -d indr_aug13_smartsavingsandinvestment_dev -f sql/01_create_database.sql
-psql -h 10.23.240.38 -p 5432 -U indr_aug13_smartsavingsandinvestment_dev -d indr_aug13_smartsavingsandinvestment_dev -f sql/02_create_tables.sql
-psql -h 10.23.240.38 -p 5432 -U indr_aug13_smartsavingsandinvestment_dev -d indr_aug13_smartsavingsandinvestment_dev -f sql/03_constraints.sql
-psql -h 10.23.240.38 -p 5432 -U indr_aug13_smartsavingsandinvestment_dev -d indr_aug13_smartsavingsandinvestment_dev -f sql/04_indexes.sql
-psql -h 10.23.240.38 -p 5432 -U indr_aug13_smartsavingsandinvestment_dev -d indr_aug13_smartsavingsandinvestment_dev -f sql/05_seed_data.sql
-```
-
-You can also paste each file into pgAdmin Query Tool.
-
-## Seeded accounts
-
-Passwords are hashed with PBKDF2 before they are stored.
+Seeded accounts (passwords are already hashed):
 
 | Role | Email | Password |
 |---|---|---|
@@ -188,82 +209,76 @@ Passwords are hashed with PBKDF2 before they are stored.
 | Admin | admin@microvault.com | Admin@1234 |
 | Member | aarav.sharma@example.com | User@1234 |
 | Member | priya.patel@example.com | User@1234 |
-| Inactive member | rohan.mehta@example.com | User@1234 |
 
-## Compile and test
+## How to run
 
-```powershell
-cd backend
-mvn -q compile
-mvn test
+Start Auth and Finance before Dashboard and Admin. Start the gateway last, or at any time after the others are up. The gateway only forwards requests.
+
+```bash
+cd auth-service
+mvn clean test
+mvn spring-boot:run
 ```
 
-- Service and business tests always run. They use in-memory DAO stubs.
-- DAO tests use the real PostgreSQL connection. They skip themselves when the database or tables are not ready.
-- DAO tests create `junit.*@microvault.test` rows and clean them up with **soft delete**. They never run `DELETE FROM`.
+```bash
+cd finance-service
+mvn clean test
+mvn spring-boot:run
+```
 
-## Password handling
+```bash
+cd admin-service
+mvn clean test
+mvn spring-boot:run
+```
 
-`PasswordUtil` hashes passwords with PBKDF2-HMAC-SHA256 and a random salt.
+```bash
+cd dashboard-service
+mvn clean test
+mvn spring-boot:run
+```
 
-Stored format:
+```bash
+cd api-gateway
+mvn clean test
+mvn spring-boot:run
+```
+
+Then open the frontend HTML files in a browser. They call `http://localhost:8080/api`.
+
+## Swagger
+
+Each API service serves Swagger UI at:
 
 ```text
-pbkdf2_sha256$iterations$base64Salt$base64Hash
+http://localhost:8081/swagger-ui/index.html
+http://localhost:8082/swagger-ui/index.html
+http://localhost:8083/swagger-ui/index.html
+http://localhost:8084/swagger-ui/index.html
 ```
 
-Login compares the typed password with that stored hash. Plain-text passwords are never written to PostgreSQL. User DTOs never include the hash.
+## Tests
 
-## Soft delete
+Service tests use JUnit 5 and Mockito. Controller tests use `@WebMvcTest` and MockMvc. They do not connect to PostgreSQL.
 
-Business records are not physically deleted.
-
-```sql
-UPDATE users
-SET is_deleted = TRUE,
-    deleted_at = CURRENT_TIMESTAMP,
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = ? AND is_deleted = FALSE;
+```bash
+cd auth-service && mvn clean test
+cd finance-service && mvn clean test
+cd dashboard-service && mvn clean test
+cd admin-service && mvn clean test
+cd api-gateway && mvn clean test
 ```
 
-Reads use `WHERE is_deleted = FALSE`.
+## Project layout
 
-## How to call the backend from Java
-
-```java
-UserDAO userDAO = new UserDAOImpl();
-UserService userService = new UserServiceImpl(userDAO);
-
-User user = new User();
-user.setFullName("Aarav Sharma");
-user.setEmail("aarav.sharma@example.com");
-user.setPhone("9876543210");
-
-UserDTO created = userService.createUser(user, "User@1234");
-UserDTO session = userService.login("aarav.sharma@example.com", "User@1234");
+```text
+MicroVault/
+├── frontend/
+├── api-gateway/
+├── auth-service/
+├── finance-service/
+├── dashboard-service/
+├── admin-service/
+├── docs/sql/
+└── README.md
 ```
-
-Affordability, goal progress, budget usage and report totals are calculated in the `business` package, not in the DAO.
-
-## Common problems
-
-| Symptom | What to check |
-|---|---|
-| `PostgreSQL JDBC driver not found` | Run `mvn compile` so Maven can download the driver |
-| Connection refused | Host, port, VPN or credentials in `database.properties` |
-| DAO tests skipped | SQL scripts 02-04 have not been applied to the same database |
-| Unique email error | Seed data already contains that email; that is expected |
-| Unique budget category error | One active budget per category per user |
-
-## Sprint 1 limits
-
-This sprint does **not** include:
-
-- REST controllers or an HTTP server
-- Spring or any other application framework
-- Hibernate / JPA
-- Hard delete of business rows
-- Plain-text password storage
-- Integer auto-increment IDs
-
-The frontend remains usable as a static UI. Connecting it to a live API is later work.
