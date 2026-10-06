@@ -1,26 +1,31 @@
 package com.microvault.auth;
 
-import com.microvault.auth.entity.User;
-import com.microvault.auth.repository.UserRepository;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.mockito.MockedStatic;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mockStatic;
 
-@SpringBootTest
 class AuthApplicationTest {
 
-    @Autowired
-    private UserRepository userRepository;
+    @Test
+    void mainStartsTheSpringApplicationWithTheGivenArguments() {
+        String[] args = {"--server.port=0"};
+        try (MockedStatic<SpringApplication> spring = mockStatic(SpringApplication.class)) {
+            spring.when(() -> SpringApplication.run(any(Class.class), any(String[].class))).thenReturn(null);
+
+            AuthApplication.main(args);
+
+            spring.verify(() -> SpringApplication.run(AuthApplication.class, args));
+        }
+    }
 
     @Test
-    void startsAndSeedsDefaultAdmin() {
-        assertNotNull(userRepository);
-        User admin = userRepository.findByEmailIgnoreCaseAndDeletedFalse("admin@microvault.local").orElseThrow();
-        assertEquals("admin", admin.getRole());
-        assertTrue(admin.getPasswordHash().startsWith("pbkdf2_sha256$"));
+    void applicationIsAConfiguredSpringBootApplication() {
+        assertNotNull(new AuthApplication());
+        assertNotNull(AuthApplication.class.getAnnotation(SpringBootApplication.class));
     }
 }

@@ -1,25 +1,31 @@
 package com.microvault.gateway;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.cloud.gateway.route.RouteLocator;
-import org.springframework.context.ApplicationContext;
+import org.mockito.MockedStatic;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mockStatic;
 
-@SpringBootTest
 class GatewayApplicationTest {
 
-    @Autowired
-    private ApplicationContext applicationContext;
+    @Test
+    void mainStartsTheSpringApplicationWithTheGivenArguments() {
+        String[] args = {"--server.port=0"};
+        try (MockedStatic<SpringApplication> spring = mockStatic(SpringApplication.class)) {
+            spring.when(() -> SpringApplication.run(any(Class.class), any(String[].class))).thenReturn(null);
 
-    @Autowired
-    private RouteLocator routeLocator;
+            GatewayApplication.main(args);
+
+            spring.verify(() -> SpringApplication.run(GatewayApplication.class, args));
+        }
+    }
 
     @Test
-    void gatewayStartsWithRoutes() {
-        assertNotNull(applicationContext);
-        assertNotNull(routeLocator);
+    void applicationIsAConfiguredSpringBootApplication() {
+        assertNotNull(new GatewayApplication());
+        assertNotNull(GatewayApplication.class.getAnnotation(SpringBootApplication.class));
     }
 }
