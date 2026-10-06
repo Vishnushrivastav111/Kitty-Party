@@ -1,0 +1,136 @@
+import { Component, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { DialogService } from '../core/dialog.service';
+import { Validators, formatDate, formatINR, monthStartISO, queryRows, todayISO } from '../core/format';
+import { Report, Tx } from '../core/models';
+import { VaultService } from '../core/vault.service';
+import { PagerComponent } from '../shared/pager.component';
+
+@Component({
+  selector: 'app-reports',
+  standalone: true,
+  imports: [FormsModule, PagerComponent],
+  template: `
+    <div class="page-header"><h1>Reports</h1><p>Generate, preview, and download period summaries</p></div>
+    <div class="panel">
+      <h2 style="margin-bottom:14px;color:var(--navy)">Generate report</h2>
+      <form (ngSubmit)="generate()" novalidate>
+        <div class="form-grid">
+          <div class="form-group"><label>From date</label><input type="date" name="from" [(ngModel)]="fromDate" [max]="today" /><span class="field-error" [style.display]="errors()['from'] ? 'block' : 'none'">{{ errors()['from'] }}</span></div>
+          <div class="form-group"><label>To date</label><input type="date" name="to" [(ngModel)]="toDate" [max]="today" /><span class="field-error" [style.display]="errors()['to'] ? 'block' : 'none'">{{ errors()['to'] }}</span></div>
+          <div class="form-group"><label>Report type</label><select name="type" [(ngModel)]="type"><option>Summary</option><option>Transactions</option><option>Savings</option><option>Budget</option></select></div>
+        </div>
+        <div class="form-actions"><button class="btn btn-primary" [disabled]="busy()"><i class="fas fa-file-lines"></i> Generate</button></div>
+      </form>
+      @if (preview(); as row) {
+        <div class="alert-box info" style="margin-top:14px">
+          <strong>{{ row.type }} report</strong><br />
+          {{ date(row.fromDate) }} to {{ date(row.toDate) }}<br />
+          Income {{ money(row.income) }} · Expense {{ money(row.expense) }} · Net {{ money(row.net) }} · {{ row.txCount }} transactions
+          <div class="form-actions" style="margin-top:10px">
+            <button type="button" class="btn btn-outline btn-sm" (click)="download(row, 'txt')">Download TXT</button>
+            <button type="button" class="btn btn-outline btn-sm" (click)="download(row, 'csv')">Download CSV</button>
+          </div>
+        </div>
+      }
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Report history</h2>
+        <button class="btn btn-danger btn-sm" type="button" (click)="clearAll()"><i class="fas fa-trash"></i> Clear all</button>
+      </div>
+      <div class="toolbar">
+        <input type="search" placeholder="Search reports..." [ngModel]="search()" (ngModelChange)="search.set($event); pageNo.set(1)" />
+        <select [ngModel]="filterType()" (ngModelChange)="filterType.set($event); pageNo.set(1)">
+          <option value="">All types</option><option>Summary</option><option>Transactions</option><option>Savings</option><option>Budget</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table color-table">
+          <thead><tr><th>Generated</th><th>Type</th><th>Period</th><th>Income</th><th>Expense</th><th>Net</th><th>Actions</th></tr></thead>
+          <tbody>
+            @if (!page().rows.length) { <tr><td colspan="7" class="empty-state">No reports yet</td></tr> }
+            @for (row of page().rows; track row.id) {
+              <tr>
+                <td>{{ date(row.createdAt) }}</td><td>{{ row.type }}</td><td>{{ date(row.fromDate) }} – {{ date(row.toDate) }}</td>
+                <td>{{ money(row.income) }}</td><td>{{ money(row.expense) }}</td><td>{{ money(row.net) }}</td>
+                <td>
+                  <button class="btn btn-outline btn-sm" type="button" (click)="preview.set(row)">View</button>
+                  <button class="btn btn-outline btn-sm" type="button" (click)="download(row, 'txt')">TXT</button>
+                  <button class="btn btn-danger btn-sm" type="button" (click)="remove(row)"><i class="fas fa-trash"></i></button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" />
+    </div>
+  `,
+})
+export class ReportsComponent {
+  private readonly vault = inject(VaultService);
+  private readonly dialog = inject(DialogService);
+  readonly today = todayISO();
+  readonly money = formatINR;
+  readonly date = formatDate;
+  fromDate = monthStartISO();
+  toDate = todayISO();
+  type = 'Summary';
+  readonly preview = signal<Report | null>(null);
+  readonly search = signal('');
+  readonly filterType = signal('');
+  readonly pageNo = signal(1);
+  readonly busy = signal(false);
+  readonly errors = signal<Record<string, string>>({});
+  readonly page = computed(() => queryRows(this.vault.reports(), this.search(), ['type', 'fromDate', 'toDate'], { type: this.filterType() }, this.pageNo(), 6));
+
+  async generate(): Promise<void> {
+    const errors = {
+      from: Validators.dateNotFuture(this.fromDate, 'From date'),
+      to: Validators.dateNotFuture(this.toDate, 'To date') || (this.toDate < this.fromDate ? 'To date must be on or after the from date' : ''),
+    };
+    this.errors.set(errors);
+    if (Object.values(errors).some(Boolean)) return;
+    this.busy.set(true);
+    try {
+      this.preview.set(await this.vault.generateReport({ fromDate: this.fromDate, toDate: this.toDate, type: this.type }));
+    } catch (error) {
+      await this.dialog.notice(error instanceof Error ? error.message : 'Could not generate report');
+    } finally { this.busy.set(false); }
+  }
+  download(report: Report, format: 'txt' | 'csv'): void {
+    const txs = this.vault.transactions().filter((row) => row.date >= report.fromDate && row.date <= report.toDate);
+    const lines = [
+      'MicroVault Financial Report',
+      '===========================',
+      'Type: ' + report.type,
+      'Generated: ' + formatDate(report.createdAt || todayISO()),
+      'Period: ' + formatDate(report.fromDate) + ' to ' + formatDate(report.toDate),
+      'Income: ' + formatINR(report.income),
+      'Expense: ' + formatINR(report.expense),
+      'Net: ' + formatINR(report.net),
+      'Transactions counted: ' + (report.txCount || txs.length),
+      '',
+      'Detailed transactions',
+      '--------------------',
+      'Date,Name,Category,Type,Amount',
+      ...(txs.length ? txs.map((row: Tx) => [row.date, '"' + (row.name || '').replace(/"/g, "'") + '"', row.category, row.type, row.amount].join(',')) : ['(No transactions in this period)']),
+      '',
+      'Prepared by MicroVault — business finance workspace',
+    ];
+    const blob = new Blob([lines.join('\r\n')], { type: format === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `MicroVault_${(report.type || 'Report').replace(/\s+/g, '_')}_${report.fromDate}_to_${report.toDate}.${format}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+  async remove(row: Report): Promise<void> {
+    if (await this.dialog.confirm('Are you sure you want to delete this report?')) await this.vault.deleteReport(row.id);
+  }
+  async clearAll(): Promise<void> {
+    if (await this.dialog.confirm('Delete every report?')) await this.vault.clearReports();
+  }
+}

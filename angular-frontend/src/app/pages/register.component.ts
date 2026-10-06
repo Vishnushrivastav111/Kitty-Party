@@ -1,0 +1,104 @@
+import { Component, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
+import { AuthService } from '../core/auth.service';
+import { Validators } from '../core/format';
+
+@Component({
+  selector: 'app-register',
+  standalone: true,
+  imports: [FormsModule, RouterLink],
+  template: `
+    <div class="auth-page">
+      <section class="auth-visual">
+        <div class="brand"><i class="fas fa-vault"></i> MicroVault</div>
+        <h1>Create your finance workspace</h1>
+        <p>Register as a member to manage savings, budgets, goals, and understand what you can afford — with clear controls built for business use.</p>
+      </section>
+      <section class="auth-panel">
+        <div class="auth-card">
+          <h2>Create account</h2>
+          <p class="subtitle">All fields are validated before registration</p>
+          <form (ngSubmit)="submit()" novalidate>
+            <div class="auth-field">
+              <label for="fullName">Full name</label>
+              <input id="fullName" name="fullName" [(ngModel)]="fullName" placeholder="Enter full name" [class.input-error]="errors()['fullName']" />
+              <span class="field-error" [style.display]="errors()['fullName'] ? 'block' : 'none'">{{ errors()['fullName'] }}</span>
+            </div>
+            <div class="auth-field">
+              <label for="email">Email address</label>
+              <input id="email" type="email" name="email" [(ngModel)]="email" placeholder="name@company.com" [class.input-error]="errors()['email']" />
+              <span class="field-error" [style.display]="errors()['email'] ? 'block' : 'none'">{{ errors()['email'] }}</span>
+            </div>
+            <div class="auth-field">
+              <label for="phone">Phone number</label>
+              <input id="phone" name="phone" [(ngModel)]="phone" maxlength="10" placeholder="10-digit mobile" [class.input-error]="errors()['phone']" />
+              <span class="field-error" [style.display]="errors()['phone'] ? 'block' : 'none'">{{ errors()['phone'] }}</span>
+            </div>
+            <div class="auth-field">
+              <label for="password">Password</label>
+              <input id="password" [type]="show() ? 'text' : 'password'" name="password" [(ngModel)]="password" placeholder="Create a strong password" style="padding-right:42px" [class.input-error]="errors()['password']" />
+              <button type="button" class="toggle-pass" (click)="show.set(!show())"><i class="fas" [class.fa-eye]="!show()" [class.fa-eye-slash]="show()"></i></button>
+              <span class="field-error" [style.display]="errors()['password'] ? 'block' : 'none'">{{ errors()['password'] }}</span>
+            </div>
+            <div class="auth-field">
+              <label for="confirmPassword">Confirm password</label>
+              <input id="confirmPassword" [type]="show2() ? 'text' : 'password'" name="confirmPassword" [(ngModel)]="confirmPassword" placeholder="Re-enter password" style="padding-right:42px" [class.input-error]="errors()['confirmPassword']" />
+              <button type="button" class="toggle-pass" (click)="show2.set(!show2())"><i class="fas" [class.fa-eye]="!show2()" [class.fa-eye-slash]="show2()"></i></button>
+              <span class="field-error" [style.display]="errors()['confirmPassword'] ? 'block' : 'none'">{{ errors()['confirmPassword'] }}</span>
+            </div>
+            <div class="auth-field" style="display:flex;gap:8px;align-items:flex-start">
+              <input type="checkbox" id="terms" name="terms" [(ngModel)]="terms" style="width:auto;margin-top:4px" />
+              <label for="terms" style="font-weight:500">I accept the <a routerLink="/terms" style="color:var(--teal-dark)">Terms &amp; Conditions</a></label>
+            </div>
+            <span class="field-error" [style.display]="errors()['terms'] ? 'block' : 'none'">{{ errors()['terms'] }}</span>
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px" [disabled]="busy()">{{ busy() ? 'Creating…' : 'Create account' }}</button>
+          </form>
+          <p class="bottom-text">Already have an account? <a routerLink="/login">Login</a></p>
+        </div>
+      </section>
+    </div>
+  `,
+})
+export class RegisterComponent {
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+
+  fullName = '';
+  email = '';
+  phone = '';
+  password = '';
+  confirmPassword = '';
+  terms = localStorage.getItem('mv_termsAccepted') === 'true';
+  readonly show = signal(false);
+  readonly show2 = signal(false);
+  readonly busy = signal(false);
+  readonly errors = signal<Record<string, string>>({});
+
+  async submit(): Promise<void> {
+    const errors: Record<string, string> = {
+      fullName: Validators.name(this.fullName),
+      email: Validators.email(this.email.trim()),
+      phone: Validators.phone(this.phone.trim()),
+      password: Validators.password(this.password),
+      confirmPassword: this.confirmPassword !== this.password ? 'Passwords do not match' : '',
+      terms: this.terms ? '' : 'Please accept the Terms & Conditions',
+    };
+    this.errors.set(errors);
+    if (Object.values(errors).some(Boolean)) return;
+    this.busy.set(true);
+    const result = await this.auth.register({
+      fullName: this.fullName.trim(),
+      email: this.email.trim(),
+      phone: this.phone.trim(),
+      password: this.password,
+      confirmPassword: this.confirmPassword,
+    });
+    this.busy.set(false);
+    if (!result.ok) {
+      this.errors.set({ ...errors, email: result.message || 'Email already registered' });
+      return;
+    }
+    await this.router.navigateByUrl('/login');
+  }
+}
