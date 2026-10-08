@@ -6,12 +6,27 @@ spring:
     name: api-gateway
   cloud:
     gateway:
+      # CORS is handled at the gateway. Downstream services may also return
+      # CORS headers, so remove duplicate response headers before they reach
+      # the browser.
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials RETAIN_FIRST
       globalcors:
+        add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns: "*"
-            allowedMethods: "*"
+            allowedOrigins:
+              - "http://localhost:4200"
+              - "http://localhost:5173"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
             allowedHeaders: "*"
+            allowCredentials: true
       routes:
         - id: auth-service
           uri: ${auth-service.url:http://localhost:8081}
