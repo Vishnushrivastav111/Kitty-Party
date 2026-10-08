@@ -1,0 +1,73 @@
+
+    <div class="page-header"><h1>Member feedback</h1><p>Review all user feedback, update status, and inspect change history</p></div>
+    <div class="cards">
+      <div class="card"><div class="card-icon navy"><i class="fas fa-inbox"></i></div><div><h3>Total</h3><h2>{{ vault.allFeedback().length }}</h2></div></div>
+      <div class="card"><div class="card-icon orange"><i class="fas fa-hourglass-half"></i></div><div><h3>Open</h3><h2>{{ openCount() }}</h2></div></div>
+      <div class="card"><div class="card-icon green"><i class="fas fa-check"></i></div><div><h3>Resolved</h3><h2>{{ resolvedCount() }}</h2></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><h2>Feedback inbox</h2></div>
+      <div class="toolbar">
+        <input type="search" placeholder="Search by user, subject, message..." [ngModel]="search()" (ngModelChange)="search.set($event); pageNo.set(1)" />
+        <select [ngModel]="status()" (ngModelChange)="status.set($event); pageNo.set(1)">
+          <option value="">All statuses</option><option value="open">Open</option><option value="in-review">In review</option><option value="resolved">Resolved</option><option value="closed">Closed</option>
+        </select>
+        <select [ngModel]="category()" (ngModelChange)="category.set($event); pageNo.set(1)">
+          <option value="">All categories</option><option value="General">General</option><option value="Bug">Bug</option><option value="Feature">Feature</option><option value="UI">UI</option><option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="feed-stack">
+        @if (!page().rows.length) { <div class="empty-state">No feedback found</div> }
+        @for (row of page().rows; track row.id) {
+          <article class="feed-item">
+            <strong>{{ row.subject }}</strong>
+            <p class="feed-meta">{{ row.userName || 'Member' }} · {{ row.userEmail }} · {{ date(row.createdAt) }} · {{ row.category }}</p>
+            <p class="feed-text">{{ row.message }}</p>
+            <span class="badge" [class.badge-success]="row.status === 'resolved'" [class.badge-warning]="row.status === 'in-review'" [class.badge-neutral]="row.status === 'closed'" [class.badge-info]="row.status === 'open'">{{ row.status }}</span>
+            <div class="form-actions">
+              <button class="btn btn-outline btn-sm" type="button" (click)="view.set(row)">View</button>
+              <button class="btn btn-outline btn-sm" type="button" (click)="beginStatus(row)">Status</button>
+              <button class="btn btn-outline btn-sm" type="button" (click)="showHistory(row)">History</button>
+            </div>
+          </article>
+        }
+      </div>
+      <app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" />
+    </div>
+    <div class="modal-backdrop" [class.open]="!!statusRow()">
+      <div class="modal">
+        <h3>Update status</h3>
+        <form (ngSubmit)="saveStatus()" novalidate>
+          <div class="form-group"><label>Status</label>
+            <select name="status" [(ngModel)]="nextStatus"><option value="open">Open</option><option value="in-review">In review</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" (click)="statusRow.set(null)">Cancel</button>
+            <button class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="modal-backdrop" [class.open]="historyOpen()">
+      <div class="modal">
+        <h3>Feedback history</h3>
+        <p style="color:var(--muted);margin-bottom:12px">{{ historyMeta }}</p>
+        <ul class="timeline">
+          @if (!history().length) { <li>No history recorded yet.</li> }
+          @for (item of history(); track $index) { <li><strong>{{ item.action }}</strong> · {{ item.by }} · {{ item.at }}<div>{{ item.note }}</div></li> }
+        </ul>
+        <div class="modal-actions"><button type="button" class="btn btn-outline" (click)="historyOpen.set(false)">Close</button></div>
+      </div>
+    </div>
+    <div class="modal-backdrop" [class.open]="!!view()">
+      <div class="modal">
+        <h3>Feedback details</h3>
+        @if (view(); as row) {
+          <p><strong>{{ row.subject }}</strong></p>
+          <p class="feed-meta">{{ row.userName }} · {{ row.userEmail }}</p>
+          <p class="feed-text">{{ row.message }}</p>
+        }
+        <div class="modal-actions"><button type="button" class="btn btn-outline" (click)="view.set(null)">Close</button></div>
+      </div>
+    </div>
+  

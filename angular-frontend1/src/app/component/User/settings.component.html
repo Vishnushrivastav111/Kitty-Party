@@ -1,0 +1,32 @@
+
+    <div class="page-header"><h1>Settings</h1><p>Profile, security, and financial setup</p></div>
+    <div class="panel">
+      <h2 style="margin-bottom:14px;color:var(--navy)">Profile</h2>
+      <form (ngSubmit)="saveProfile()" novalidate>
+        <div class="form-grid">
+          <div class="form-group"><label>Full name</label><input name="fullName" [(ngModel)]="fullName" /><span class="field-error" [style.display]="errors()['fullName'] ? 'block' : 'none'">{{ errors()['fullName'] }}</span></div>
+          <div class="form-group"><label>Email</label><input type="email" name="email" [(ngModel)]="email" /><span class="field-error" [style.display]="errors()['email'] ? 'block' : 'none'">{{ errors()['email'] }}</span></div>
+          <div class="form-group"><label>Phone</label><input name="phone" maxlength="10" [(ngModel)]="phone" /><span class="field-error" [style.display]="errors()['phone'] ? 'block' : 'none'">{{ errors()['phone'] }}</span></div>
+        </div>
+        <div class="form-actions"><button class="btn btn-primary" [disabled]="busy()">Save profile</button></div>
+      </form>
+    </div>
+    <div class="panel">
+      <h2 style="margin-bottom:14px;color:var(--navy)">Change password</h2>
+      <form (ngSubmit)="savePassword()" novalidate>
+        <div class="form-grid">
+          <div class="form-group"><label>Current password</label><input type="password" name="current" [(ngModel)]="currentPassword" /><span class="field-error" [style.display]="passErrors()['current'] ? 'block' : 'none'">{{ passErrors()['current'] }}</span></div>
+          <div class="form-group"><label>New password</label><input type="password" name="next" [(ngModel)]="newPassword" /><span class="field-error" [style.display]="passErrors()['next'] ? 'block' : 'none'">{{ passErrors()['next'] }}</span></div>
+          <div class="form-group"><label>Confirm password</label><input type="password" name="confirm" [(ngModel)]="confirmPassword" /><span class="field-error" [style.display]="passErrors()['confirm'] ? 'block' : 'none'">{{ passErrors()['confirm'] }}</span></div>
+        </div>
+        <div class="form-actions"><button class="btn btn-navy" [disabled]="passBusy()">Update password</button></div>
+      </form>
+    </div>
+    @if (member()) {
+      <div class="panel">
+        <h2 style="margin-bottom:10px;color:var(--navy)">Financial setup</h2>
+        <p style="color:var(--muted);margin-bottom:12px;font-size:14px">Revisit income, expenses, and budget baselines.</p>
+        <a class="btn btn-outline" routerLink="/setup"><i class="fas fa-sliders"></i> Open financial setup</a>
+      </div>
+    }
+  

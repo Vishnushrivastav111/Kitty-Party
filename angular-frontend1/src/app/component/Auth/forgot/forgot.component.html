@@ -1,0 +1,44 @@
+
+    <div class="auth-page">
+      <section class="auth-visual">
+        <div class="brand"><i class="fas fa-vault"></i> MicroVault</div>
+        <h1>Reset your password</h1>
+        <p>Verify your registered email and set a new secure password for your MicroVault account.</p>
+      </section>
+      <section class="auth-panel">
+        <div class="auth-card">
+          <h2>Forgot password</h2>
+          <p class="subtitle">Each step is validated before you continue</p>
+          <form (ngSubmit)="submit()" novalidate>
+            <div class="auth-field">
+              <label for="email">Registered email</label>
+              <input id="email" type="email" name="email" [(ngModel)]="email" [class.input-error]="errors()['email']" />
+              <span class="field-error" [style.display]="errors()['email'] ? 'block' : 'none'">{{ errors()['email'] }}</span>
+            </div>
+            <div class="auth-field">
+              <label for="otp">Verification code</label>
+              <input id="otp" name="otp" [(ngModel)]="otp" maxlength="6" placeholder="Enter 6-digit code" [class.input-error]="errors()['otp']" />
+              <span class="field-error" [style.display]="errors()['otp'] ? 'block' : 'none'">{{ errors()['otp'] }}</span>
+            </div>
+            <button type="button" class="btn btn-outline" style="width:100%;margin-bottom:12px" (click)="sendCode()" [disabled]="sending()">
+              {{ sending() ? 'Sending…' : 'Send verification code' }}
+            </button>
+            <div class="auth-field">
+              <label for="password">New password</label>
+              <input id="password" [type]="show() ? 'text' : 'password'" name="password" [(ngModel)]="password" style="padding-right:42px" [class.input-error]="errors()['password']" />
+              <button type="button" class="toggle-pass" (click)="show.set(!show())"><i class="fas" [class.fa-eye]="!show()" [class.fa-eye-slash]="show()"></i></button>
+              <span class="field-error" [style.display]="errors()['password'] ? 'block' : 'none'">{{ errors()['password'] }}</span>
+            </div>
+            <div class="auth-field">
+              <label for="confirmPassword">Confirm new password</label>
+              <input id="confirmPassword" [type]="show2() ? 'text' : 'password'" name="confirmPassword" [(ngModel)]="confirmPassword" style="padding-right:42px" [class.input-error]="errors()['confirmPassword']" />
+              <button type="button" class="toggle-pass" (click)="show2.set(!show2())"><i class="fas" [class.fa-eye]="!show2()" [class.fa-eye-slash]="show2()"></i></button>
+              <span class="field-error" [style.display]="errors()['confirmPassword'] ? 'block' : 'none'">{{ errors()['confirmPassword'] }}</span>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%" [disabled]="busy()">Update password</button>
+          </form>
+          <p class="bottom-text"><a routerLink="/login">Back to login</a></p>
+        </div>
+      </section>
+    </div>
+  

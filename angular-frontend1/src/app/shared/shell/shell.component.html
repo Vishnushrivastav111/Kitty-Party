@@ -1,0 +1,56 @@
+
+    <div class="dashboard">
+      <aside class="sidebar" [class.role-admin]="role() === 'admin'" [class.role-super]="role() === 'superadmin'" [class.role-member]="role() === 'user'">
+        <div class="sidebar-brand">
+          <div class="brand-mark"><i class="fas fa-vault"></i></div>
+          <div>
+            <strong>MicroVault</strong>
+            <small class="role-chip">{{ roleLabel() }}</small>
+          </div>
+          <button type="button" class="sidebar-close" aria-label="Close menu" (click)="closeMenu()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">{{ initial() }}</div>
+          <div>
+            <strong>{{ user()?.fullName || 'User' }}</strong>
+            <small>{{ user()?.email }}</small>
+          </div>
+        </div>
+        <nav>
+          <ul class="sidebar-nav">
+            @for (item of nav(); track item.kind === 'link' ? item.path : item.title) {
+              @if (item.kind === 'section') {
+                @if (item.title) {
+                  <li class="nav-section">{{ item.title }}</li>
+                } @else {
+                  <li class="nav-divider" aria-hidden="true"></li>
+                }
+              } @else {
+                <li class="nav-item" [ngClass]="item.color" routerLinkActive="active" [style.--nav-i]="item.index + 's'">
+                  <a [routerLink]="item.path" (click)="closeMenu()">
+                    <span class="nav-ico"><i [class]="'fas fa-' + item.icon"></i></span>
+                    <span>{{ item.label }}</span>
+                  </a>
+                </li>
+              }
+            }
+          </ul>
+        </nav>
+      </aside>
+      <div class="sidebar-overlay" (click)="closeMenu()"></div>
+      <div class="main-content">
+        <div class="topbar">
+          <button type="button" class="menu-toggle" aria-label="Open menu" (click)="openMenu()"><i class="fas fa-bars"></i></button>
+          <div class="topbar-title">{{ title() }}</div>
+          <div class="topbar-date"><i class="fas fa-calendar-day"></i> <span>{{ dateLabel }}</span></div>
+        </div>
+        @if (vault.loading() && !vault.loaded()) {
+          <div class="empty-state">Loading your workspace…</div>
+        } @else if (vault.error() && !vault.loaded()) {
+          <div class="alert-box danger">{{ vault.error() }}</div>
+        } @else {
+          <router-outlet />
+        }
+      </div>
+    </div>
+  

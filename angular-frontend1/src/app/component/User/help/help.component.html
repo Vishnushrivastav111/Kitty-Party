@@ -1,0 +1,26 @@
+
+    <div class="page-header">
+      <h1>Help &amp; Support</h1>
+      <p>Guided answers for navigation, savings, and common tasks — menu-based assistant</p>
+    </div>
+    <div class="chat-layout">
+      <aside class="chat-menu">
+        <h3><i class="fas fa-list"></i> Topics</h3>
+        @for (item of topics; track item.key) {
+          <button type="button" [class.active]="topic() === item.key" (click)="load(item.key)">{{ item.label }}</button>
+        }
+      </aside>
+      <section class="chat-window">
+        <div class="chat-messages">
+          @for (bubble of messages(); track $index) {
+            <div class="bubble" [class.bot]="bubble.who === 'bot'" [class.user]="bubble.who === 'user'">{{ bubble.text }}</div>
+          }
+        </div>
+        <div class="chat-quick">
+          @for (chip of chips(); track chip.q) {
+            <button type="button" class="chip" (click)="ask(chip)">{{ chip.q }}</button>
+          }
+        </div>
+      </section>
+    </div>
+  

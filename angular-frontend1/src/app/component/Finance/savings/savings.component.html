@@ -1,0 +1,64 @@
+
+    <div class="page-header"><h1>Savings</h1><p>Record deposits and withdrawals toward your vault</p></div>
+    <div class="cards">
+      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Vault total</h3><h2>{{ money(total()) }}</h2></div></div>
+      <div class="card"><div class="card-icon teal"><i class="fas fa-list"></i></div><div><h3>Entries</h3><h2>{{ vault.savings().length }}</h2></div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3><i class="fas fa-chart-line"></i> Balance growth</h3><div class="chart-wrap"><canvas #savLine></canvas></div></div>
+      <div class="chart-card"><h3><i class="fas fa-chart-pie"></i> By category</h3><div class="chart-wrap"><canvas #savPie></canvas></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Savings history</h2>
+        <button class="btn btn-danger btn-sm" type="button" (click)="clearAll()"><i class="fas fa-trash"></i> Clear all</button>
+        <button class="btn btn-primary btn-sm" type="button" (click)="open(null)"><i class="fas fa-plus"></i> Add entry</button>
+      </div>
+      <div class="toolbar">
+        <input type="search" placeholder="Search title or note..." [ngModel]="search()" (ngModelChange)="setSearch($event)" />
+        <select [ngModel]="category()" (ngModelChange)="category.set($event); pageNo.set(1)">
+          <option value="">All categories</option>
+          @for (item of categories; track item) { <option [value]="item">{{ item }}</option> }
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Title</th><th>Category</th><th>Amount</th><th>Note</th><th>Actions</th></tr></thead>
+          <tbody>
+            @if (!page().rows.length) { <tr><td colspan="6" class="empty-state">No savings entries</td></tr> }
+            @for (row of page().rows; track row.id) {
+              <tr>
+                <td>{{ date(row.date) }}</td><td>{{ row.title }}</td><td>{{ row.category }}</td><td>{{ money(row.amount) }}</td><td>{{ row.note || '—' }}</td>
+                <td>
+                  <button class="btn btn-outline btn-sm" type="button" (click)="open(row)"><i class="fas fa-pen"></i></button>
+                  <button class="btn btn-danger btn-sm" type="button" (click)="remove(row)"><i class="fas fa-trash"></i></button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" />
+    </div>
+    <div class="modal-backdrop" [class.open]="editing()">
+      <div class="modal">
+        <h3>{{ form.id ? 'Edit entry' : 'Add entry' }}</h3>
+        <form (ngSubmit)="save()" novalidate>
+          <div class="form-grid">
+            <div class="form-group"><label>Title</label><input name="title" [(ngModel)]="form.title" /><span class="field-error" [style.display]="errors()['title'] ? 'block' : 'none'">{{ errors()['title'] }}</span></div>
+            <div class="form-group"><label>Category</label>
+              <select name="category" [(ngModel)]="form.category"><option value="">Select</option>@for (item of categories; track item) { <option [value]="item">{{ item }}</option> }</select>
+              <span class="field-error" [style.display]="errors()['category'] ? 'block' : 'none'">{{ errors()['category'] }}</span>
+            </div>
+            <div class="form-group"><label>Amount (₹)</label><input type="number" name="amount" min="1" [(ngModel)]="form.amount" /><span class="field-error" [style.display]="errors()['amount'] ? 'block' : 'none'">{{ errors()['amount'] }}</span></div>
+            <div class="form-group"><label>Date</label><input type="date" name="date" [(ngModel)]="form.date" [max]="today" /><span class="field-error" [style.display]="errors()['date'] ? 'block' : 'none'">{{ errors()['date'] }}</span></div>
+            <div class="form-group" style="grid-column:1/-1"><label>Note</label><input name="note" [(ngModel)]="form.note" /></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" (click)="editing.set(false)">Cancel</button>
+            <button class="btn btn-primary" [disabled]="busy()">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  

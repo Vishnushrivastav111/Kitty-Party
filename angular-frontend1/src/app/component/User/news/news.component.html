@@ -1,0 +1,33 @@
+
+    <div class="page-header"><h1>News</h1><p>Announcements from MicroVault admins — same feed for every member</p></div>
+    <div class="panel">
+      <div class="panel-header"><h2>Latest updates</h2></div>
+      <div class="toolbar">
+        <input type="search" placeholder="Search news..." [ngModel]="search()" (ngModelChange)="search.set($event); pageNo.set(1)" />
+        <select [ngModel]="priority()" (ngModelChange)="priority.set($event); pageNo.set(1)">
+          <option value="">All priorities</option><option value="normal">Normal</option><option value="high">High</option>
+        </select>
+      </div>
+      <div class="feed-stack">
+        @if (!page().rows.length) { <div class="empty-state">No news yet</div> }
+        @for (row of page().rows; track row.id) {
+          <article class="feed-item is-clickable" [class.is-high]="row.priority === 'high'" (click)="selected.set(row)">
+            <strong>{{ row.title }}</strong>
+            <p class="feed-meta">{{ date(row.createdAt) }} · {{ row.authorName || 'MicroVault' }} · {{ row.priority || 'normal' }}</p>
+            <p class="feed-text">{{ row.body }}</p>
+          </article>
+        }
+      </div>
+      <app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" />
+    </div>
+    @if (selected(); as row) {
+      <div class="panel" style="margin-top:16px">
+        <div class="panel-header">
+          <h2>{{ row.title }}</h2>
+          <button type="button" class="btn btn-outline btn-sm" (click)="selected.set(null)">Close</button>
+        </div>
+        <p class="feed-meta" style="margin-bottom:12px">{{ date(row.createdAt) }} · {{ row.authorName || 'MicroVault' }}</p>
+        <p class="feed-text">{{ row.body }}</p>
+      </div>
+    }
+  

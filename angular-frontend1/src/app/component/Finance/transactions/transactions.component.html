@@ -1,0 +1,61 @@
+
+    <div class="page-header"><h1>Transactions</h1><p>Track income and expenses with search, filters, and pagination</p></div>
+    <div class="panel">
+      <div class="panel-header">
+        <h2>All transactions</h2>
+        <button class="btn btn-danger btn-sm" type="button" (click)="clearAll()"><i class="fas fa-trash"></i> Clear all</button>
+        <button class="btn btn-primary btn-sm" type="button" (click)="open(null)"><i class="fas fa-plus"></i> Add transaction</button>
+      </div>
+      <div class="toolbar">
+        <input type="search" placeholder="Search name, category..." [ngModel]="search()" (ngModelChange)="setSearch($event)" />
+        <select [ngModel]="type()" (ngModelChange)="setFilter('type', $event)">
+          <option value="">All types</option><option value="income">Income</option><option value="expense">Expense</option>
+        </select>
+        <select [ngModel]="category()" (ngModelChange)="setFilter('category', $event)">
+          <option value="">All categories</option>
+          @for (item of categories; track item) { <option [value]="item">{{ item }}</option> }
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Name</th><th>Category</th><th>Type</th><th>Amount</th><th>Actions</th></tr></thead>
+          <tbody>
+            @if (!page().rows.length) { <tr><td colspan="6" class="empty-state">No transactions found</td></tr> }
+            @for (row of page().rows; track row.id; let i = $index) {
+              <tr [class]="'row-tone-' + (i % 4)">
+                <td>{{ date(row.date) }}</td><td>{{ row.name }}</td><td>{{ row.category }}</td>
+                <td><span class="badge" [class.badge-success]="row.type === 'income'" [class.badge-warning]="row.type !== 'income'">{{ row.type }}</span></td>
+                <td [class.amt-pos]="row.type === 'income'" [class.amt-neg]="row.type !== 'income'">{{ money(row.amount) }}</td>
+                <td>
+                  <button class="btn btn-outline btn-sm" type="button" (click)="open(row)"><i class="fas fa-pen"></i></button>
+                  <button class="btn btn-danger btn-sm" type="button" (click)="remove(row)"><i class="fas fa-trash"></i></button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" />
+    </div>
+    <div class="modal-backdrop" [class.open]="editing()">
+      <div class="modal">
+        <h3>{{ form.id ? 'Edit transaction' : 'Add transaction' }}</h3>
+        <form (ngSubmit)="save()" novalidate>
+          <div class="form-grid">
+            <div class="form-group"><label>Date</label><input type="date" name="date" [(ngModel)]="form.date" [max]="today" [class.input-error]="errors()['date']" /><span class="field-error" [style.display]="errors()['date'] ? 'block' : 'none'">{{ errors()['date'] }}</span></div>
+            <div class="form-group"><label>Name</label><input name="name" [(ngModel)]="form.name" [class.input-error]="errors()['name']" /><span class="field-error" [style.display]="errors()['name'] ? 'block' : 'none'">{{ errors()['name'] }}</span></div>
+            <div class="form-group"><label>Category</label>
+              <select name="category" [(ngModel)]="form.category" [class.input-error]="errors()['category']"><option value="">Select</option>@for (item of categories; track item) { <option [value]="item">{{ item }}</option> }</select>
+              <span class="field-error" [style.display]="errors()['category'] ? 'block' : 'none'">{{ errors()['category'] }}</span>
+            </div>
+            <div class="form-group"><label>Type</label><select name="type" [(ngModel)]="form.type"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+            <div class="form-group"><label>Amount (₹)</label><input type="number" name="amount" min="0" [(ngModel)]="form.amount" [class.input-error]="errors()['amount']" /><span class="field-error" [style.display]="errors()['amount'] ? 'block' : 'none'">{{ errors()['amount'] }}</span></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" (click)="editing.set(false)">Cancel</button>
+            <button type="submit" class="btn btn-primary" [disabled]="busy()">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  

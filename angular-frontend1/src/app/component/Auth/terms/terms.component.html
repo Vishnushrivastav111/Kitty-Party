@@ -1,0 +1,26 @@
+
+    <div style="background:var(--bg);padding:24px;min-height:100vh">
+      <div class="panel" style="max-width:860px;margin:0 auto">
+        <h1 style="color:var(--navy);margin-bottom:12px">Terms &amp; Conditions</h1>
+        <div #box (scroll)="onScroll(box)" style="max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:16px;line-height:1.6;color:var(--slate);font-size:14px">
+          <p><strong>MicroVault</strong> is a business-oriented personal finance workspace for tracking income, expenses, savings, budgets, goals, and affordability checks.</p>
+          <p>1. You agree to provide accurate registration and financial information.</p>
+          <p>2. Credentials must be kept confidential. You are responsible for activity under your account.</p>
+          <p>3. Admin and Super Admin roles have elevated access for user and admin management as configured by the organization.</p>
+          <p>4. Account and finance data is stored by the MicroVault services you sign in to. This tool does not replace regulated banking advice.</p>
+          <p>5. MicroVault does not execute real payments or investments; it is a planning and tracking tool.</p>
+          <p>6. You may request account closure by contacting your Super Admin.</p>
+          <p>7. By accepting, you confirm you have read and understood these terms.</p>
+          <p style="height:80px"></p>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+          <input type="checkbox" [disabled]="!unlocked()" [checked]="accepted()" (change)="accepted.set($any($event.target).checked)" />
+          <span>I have read and accept the Terms &amp; Conditions</span>
+        </label>
+        <div class="form-actions">
+          <a class="btn btn-outline" routerLink="/register">Back</a>
+          <button type="button" class="btn btn-primary" [disabled]="!accepted()" (click)="accept()">Accept &amp; continue</button>
+        </div>
+      </div>
+    </div>
+  

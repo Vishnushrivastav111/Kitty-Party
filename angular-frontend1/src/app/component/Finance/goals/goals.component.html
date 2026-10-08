@@ -1,0 +1,66 @@
+
+    <div class="page-header"><h1>Goals</h1><p>Plan targets, track progress, and update saved amounts</p></div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3><i class="fas fa-chart-bar"></i> Saved vs target</h3><div class="chart-wrap"><canvas #goalBar></canvas></div></div>
+      <div class="chart-card"><h3><i class="fas fa-chart-pie"></i> Status mix</h3><div class="chart-wrap"><canvas #goalPie></canvas></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Goal list</h2>
+        <button class="btn btn-danger btn-sm" type="button" (click)="clearAll()"><i class="fas fa-trash"></i> Clear all</button>
+        <button class="btn btn-primary btn-sm" type="button" (click)="open(null)"><i class="fas fa-plus"></i> Add goal</button>
+      </div>
+      <div class="toolbar">
+        <input type="search" placeholder="Search goals..." [ngModel]="search()" (ngModelChange)="setSearch($event)" />
+        <select [ngModel]="status()" (ngModelChange)="setFilter('status', $event)">
+          <option value="">All statuses</option><option value="active">Active</option><option value="completed">Completed</option><option value="paused">Paused</option>
+        </select>
+        <select [ngModel]="category()" (ngModelChange)="setFilter('category', $event)">
+          <option value="">All categories</option>
+          @for (item of categories; track item) { <option [value]="item">{{ item }}</option> }
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Title</th><th>Category</th><th>Target</th><th>Saved</th><th>Progress</th><th>Deadline</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            @if (!page().rows.length) { <tr><td colspan="8" class="empty-state">No goals yet</td></tr> }
+            @for (row of page().rows; track row.id) {
+              <tr>
+                <td>{{ row.title }}</td><td>{{ row.category }}</td><td>{{ money(row.target) }}</td><td>{{ money(row.saved) }}</td>
+                <td>{{ pct(row) }}%</td><td>{{ date(row.deadline) }}</td>
+                <td><span class="badge" [class.badge-success]="row.status === 'completed'" [class.badge-warning]="row.status === 'paused'" [class.badge-info]="row.status === 'active'">{{ row.status }}</span></td>
+                <td>
+                  <button class="btn btn-outline btn-sm" type="button" (click)="open(row)"><i class="fas fa-pen"></i></button>
+                  <button class="btn btn-danger btn-sm" type="button" (click)="remove(row)"><i class="fas fa-trash"></i></button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" />
+    </div>
+    <div class="modal-backdrop" [class.open]="editing()">
+      <div class="modal">
+        <h3>{{ form.id ? 'Edit goal' : 'Add goal' }}</h3>
+        <form (ngSubmit)="save()" novalidate>
+          <div class="form-grid">
+            <div class="form-group"><label>Title</label><input name="title" [(ngModel)]="form.title" [class.input-error]="errors()['title']" /><span class="field-error" [style.display]="errors()['title'] ? 'block' : 'none'">{{ errors()['title'] }}</span></div>
+            <div class="form-group"><label>Category</label>
+              <select name="category" [(ngModel)]="form.category"><option value="">Select</option>@for (item of categories; track item) { <option [value]="item">{{ item }}</option> }</select>
+              <span class="field-error" [style.display]="errors()['category'] ? 'block' : 'none'">{{ errors()['category'] }}</span>
+            </div>
+            <div class="form-group"><label>Target (₹)</label><input type="number" name="target" min="1" [(ngModel)]="form.target" /><span class="field-error" [style.display]="errors()['target'] ? 'block' : 'none'">{{ errors()['target'] }}</span></div>
+            <div class="form-group"><label>Saved (₹)</label><input type="number" name="saved" min="0" [(ngModel)]="form.saved" /><span class="field-error" [style.display]="errors()['saved'] ? 'block' : 'none'">{{ errors()['saved'] }}</span></div>
+            <div class="form-group"><label>Deadline</label><input type="date" name="deadline" [(ngModel)]="form.deadline" /><span class="field-error" [style.display]="errors()['deadline'] ? 'block' : 'none'">{{ errors()['deadline'] }}</span></div>
+            <div class="form-group"><label>Status</label><select name="status" [(ngModel)]="form.status"><option value="active">Active</option><option value="paused">Paused</option><option value="completed">Completed</option></select></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" (click)="editing.set(false)">Cancel</button>
+            <button class="btn btn-primary" [disabled]="busy()">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  

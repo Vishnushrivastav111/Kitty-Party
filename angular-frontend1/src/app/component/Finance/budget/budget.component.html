@@ -1,0 +1,63 @@
+
+    <div class="page-header"><h1>Budget</h1><p>Set category limits and monitor spending</p></div>
+    <div class="cards">
+      <div class="card"><div class="card-icon navy"><i class="fas fa-wallet"></i></div><div><h3>Total limits</h3><h2>{{ money(totals().limit) }}</h2></div></div>
+      <div class="card"><div class="card-icon orange"><i class="fas fa-receipt"></i></div><div><h3>Total spent</h3><h2>{{ money(totals().spent) }}</h2></div></div>
+      <div class="card"><div class="card-icon" [class.orange]="totals().spent > totals().limit" [class.green]="totals().spent <= totals().limit"><i class="fas fa-scale-balanced"></i></div><div><h3>Remaining</h3><h2>{{ money(totals().limit - totals().spent) }}</h2></div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3><i class="fas fa-chart-bar"></i> Limit vs spent</h3><div class="chart-wrap"><canvas #budgetBar></canvas></div></div>
+      <div class="chart-card"><h3><i class="fas fa-chart-pie"></i> Budget allocation</h3><div class="chart-wrap"><canvas #budgetPie></canvas></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Budget categories</h2>
+        <button class="btn btn-danger btn-sm" type="button" (click)="clearAll()"><i class="fas fa-trash"></i> Clear all</button>
+        <button class="btn btn-primary btn-sm" type="button" (click)="open(null)"><i class="fas fa-plus"></i> Add budget</button>
+      </div>
+      <div class="toolbar">
+        <input type="search" placeholder="Search category..." [ngModel]="search()" (ngModelChange)="search.set($event); pageNo.set(1)" />
+        <select [ngModel]="status()" (ngModelChange)="status.set($event); pageNo.set(1)">
+          <option value="">All</option><option value="ok">Within limit</option><option value="warn">Near limit</option><option value="over">Over budget</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Category</th><th>Limit</th><th>Spent</th><th>Remaining</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            @if (!page().rows.length) { <tr><td colspan="6" class="empty-state">No budgets set</td></tr> }
+            @for (row of page().rows; track row.id) {
+              <tr>
+                <td>{{ row.category }}</td><td>{{ money(row.limit) }}</td><td>{{ money(row.spent) }}</td><td>{{ money(row.remaining) }}</td>
+                <td><span class="badge" [class.badge-success]="row.status === 'ok'" [class.badge-warning]="row.status === 'warn'" [class.badge-danger]="row.status === 'over'">{{ label(row.status) }}</span></td>
+                <td>
+                  <button class="btn btn-outline btn-sm" type="button" (click)="open(row)"><i class="fas fa-pen"></i></button>
+                  <button class="btn btn-danger btn-sm" type="button" (click)="remove(row)"><i class="fas fa-trash"></i></button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" />
+    </div>
+    <div class="modal-backdrop" [class.open]="editing()">
+      <div class="modal">
+        <h3>{{ form.id ? 'Edit budget' : 'Add budget' }}</h3>
+        <form (ngSubmit)="save()" novalidate>
+          <div class="form-grid">
+            <div class="form-group"><label>Category</label>
+              <select name="category" [(ngModel)]="form.category"><option value="">Select</option>@for (item of categories; track item) { <option [value]="item">{{ item }}</option> }</select>
+              <span class="field-error" [style.display]="errors()['category'] ? 'block' : 'none'">{{ errors()['category'] }}</span>
+            </div>
+            <div class="form-group"><label>Monthly limit (₹)</label><input type="number" name="limit" min="1" [(ngModel)]="form.limit" /><span class="field-error" [style.display]="errors()['limit'] ? 'block' : 'none'">{{ errors()['limit'] }}</span></div>
+            <div class="form-group"><label>Note</label><input name="note" [(ngModel)]="form.note" /></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" (click)="editing.set(false)">Cancel</button>
+            <button class="btn btn-primary" [disabled]="busy()">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  

@@ -1,0 +1,7 @@
+
+    <div class="pagination">
+      <button type="button" class="page-btn" [disabled]="page() <= 1" (click)="pageChange.emit(page() - 1)">Prev</button>
+      <span class="page-info">Page {{ page() }} of {{ totalPages() }} ({{ total() }} records)</span>
+      <button type="button" class="page-btn" [disabled]="page() >= totalPages()" (click)="pageChange.emit(page() + 1)">Next</button>
+    </div>
+  
