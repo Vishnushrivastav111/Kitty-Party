@@ -1,0 +1,7 @@
+<div class="page-header"><h1>Approval Center</h1><p>Review transaction deletions, financial setup requests, and other pending approvals.</p></div>
+<div class="panel"><div class="panel-header"><h2>Pending approvals</h2><button class="btn btn-outline btn-sm" type="button" (click)="load()">Refresh</button></div>
+@if (loading()) { <div class="empty-state">Loading approvals…</div> } @else if (!rows().length) { <div class="empty-state">No pending approval requests.</div> } @else {
+<div class="table-wrap"><table class="data-table"><thead><tr><th>Type</th><th>User</th><th>Requested</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+@for (row of rows(); track row.id) {<tr><td><span class="badge badge-neutral">{{row.type}}</span></td><td>{{row.userName || row.userEmail || row.userId || '—'}}</td><td>{{row.requestedAt ? date(row.requestedAt) : '—'}}</td><td>@if(row.transaction){Transaction: {{row.transaction['name'] || '—'}} · {{money(row.transaction['amount'])}}} @else if(row.financialSetup){Financial setup submitted} @else {Review request details}</td><td>{{row.status}}</td><td><button class="btn btn-primary btn-sm" type="button" [disabled]="busy()===row.id" (click)="approve(row)">Approve</button><button class="btn btn-outline btn-sm" type="button" [disabled]="busy()===row.id" (click)="reject(row)">Reject</button></td></tr>}
+</tbody></table></div>}
+</div>

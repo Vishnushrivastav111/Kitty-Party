@@ -5,23 +5,29 @@ import { AuthService } from '../../service/auth.service';
 import { homePath, Validators } from '../../shared/format';
 import { FinanceService } from '../../service/finance.service';
 
-@Component({
-  selector: 'app-login',
-  standalone: true,
-  imports: [FormsModule, RouterLink],
-  templateUrl: './login.component.html',
-  styleUrl: './login.component.scss',
-})
+@Component({ selector: 'app-login', standalone: true, imports: [FormsModule, RouterLink], templateUrl: './login.component.html', styleUrl: './login.component.scss' })
 export class LoginComponent {
   private readonly auth = inject(AuthService);
   private readonly vault = inject(FinanceService);
   private readonly router = inject(Router);
+  email = ''; password = '';
+  readonly show = signal(false); readonly busy = signal(false); readonly errors = signal<Record<string, string>>({});
 
-  email = '';
-  password = '';
-  readonly show = signal(false);
-  readonly busy = signal(false);
-  readonly errors = signal<Record<string, string>>({});
+  clearError(field: string): void {
+    const next = { ...this.errors() };
+    delete next[field];
+    this.errors.set(next);
+  }
+
+  validateEmail(): void {
+    const message = Validators.email(this.email.trim());
+    this.errors.set({ ...this.errors(), email: message });
+  }
+
+  validatePassword(): void {
+    const message = !this.password ? 'Password is required' : this.password.length < 8 ? 'Password must be at least 8 characters' : '';
+    this.errors.set({ ...this.errors(), password: message });
+  }
 
   async submit(): Promise<void> {
     const emailErr = Validators.email(this.email.trim());
@@ -31,23 +37,15 @@ export class LoginComponent {
     this.busy.set(true);
     const result = await this.auth.login(this.email.trim(), this.password);
     if (!result.ok || !result.user) {
-      this.errors.set({ email: '', password: result.message || 'Invalid email or password' });
+      this.errors.set({ email: '', password: result.message || 'Login failed' });
       this.busy.set(false);
       return;
     }
-    try {
-      await this.vault.load();
-    } catch {
-      /* route still opens; shell will surface the load error */
-    }
+    try { await this.vault.load(); } catch { /* shell can surface workspace errors */ }
     const role = result.user.role;
-    if (role === 'admin' || role === 'superadmin') {
-      await this.router.navigateByUrl(homePath(role));
-    } else if (this.vault.finance() || this.vault.setupSkipped()) {
-      await this.router.navigateByUrl('/dashboard');
-    } else {
-      await this.router.navigateByUrl('/setup');
-    }
+    if (role === 'admin' || role === 'superadmin') await this.router.navigateByUrl(homePath(role));
+    else if (this.vault.finance() || this.vault.setupSkipped()) await this.router.navigateByUrl('/dashboard');
+    else await this.router.navigateByUrl('/setup');
     this.busy.set(false);
   }
 }
