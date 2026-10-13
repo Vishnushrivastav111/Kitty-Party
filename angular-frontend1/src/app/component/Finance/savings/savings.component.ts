@@ -1,7 +1,11 @@
 import { Component, computed, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { mountChart } from '../../../shared/charts';
+import { destroyChart, mountChart } from '../../../shared/charts';
+import { savingsTrend, stepGraph } from '../../../shared/finance-rules';
+import { GraphPagerComponent } from '../../../shared/graph-pager.component';
+import { parseApiError } from '../../../shared/api-error';
 import { DialogService } from '../../../shared/dialog.service';
+import { assignError } from '../../../shared/field-state';
 import { CHART_COLORS, SAVINGS_CATEGORIES, Validators, formatDate, formatINR, num, queryRows, todayISO } from '../../../shared/format';
 import { Saving } from '../../../model/models';
 import { FinanceService } from '../../../service/finance.service';
@@ -10,15 +14,15 @@ import { PagerComponent } from '../../../shared/pager.component';
 @Component({
   selector: 'app-savings',
   standalone: true,
-  imports: [FormsModule, PagerComponent],
+  imports: [FormsModule, PagerComponent, GraphPagerComponent],
   templateUrl: './savings.component.html',
   styleUrl: './savings.component.scss',
 })
 export class SavingsComponent {
   readonly vault = inject(FinanceService);
   private readonly dialog = inject(DialogService);
-  private readonly line = viewChild<ElementRef<HTMLCanvasElement>>('savLine');
-  private readonly pie = viewChild<ElementRef<HTMLCanvasElement>>('savPie');
+  private readonly stage = viewChild<ElementRef<HTMLCanvasElement>>('stage');
+  readonly graphIndex = signal(0);
   readonly categories = SAVINGS_CATEGORIES;
   readonly today = todayISO();
   readonly money = formatINR;
@@ -34,27 +38,37 @@ export class SavingsComponent {
   readonly page = computed(() => queryRows(this.vault.savings(), this.search(), ['title', 'note', 'category'], { category: this.category() }, this.pageNo(), 6));
 
   constructor() {
-    effect(() => {
-      const rows = [...this.vault.savings()].reverse();
-      const line = this.line()?.nativeElement;
-      const pie = this.pie()?.nativeElement;
-      if (!line || !pie) return;
-      let running = 0;
-      const labels: string[] = [];
-      const data: number[] = [];
-      rows.forEach((row) => { running += num(row.amount); labels.push(formatDate(row.date)); data.push(running); });
-      mountChart(line, {
+    effect(() => this.paint());
+  }
+
+  showGraph(index: number): void {
+    destroyChart(this.stage()?.nativeElement);
+    this.graphIndex.set(stepGraph(index, 2, 0));
+  }
+
+  private paint(): void {
+    const canvas = this.stage()?.nativeElement;
+    const rows = this.vault.savings();
+    if (!rows.length || !canvas) {
+      destroyChart(canvas);
+      return;
+    }
+    if (this.graphIndex() === 0) {
+      const series = savingsTrend([...rows].reverse());
+      if (!series) return;
+      mountChart(canvas, {
         type: 'line',
-        data: { labels: labels.length ? labels : ['Start'], datasets: [{ label: 'Balance', data: data.length ? data : [0], borderColor: CHART_COLORS[0], backgroundColor: 'rgba(13,148,136,0.15)', fill: true, tension: 0.35 }] },
+        data: { labels: series.labels.map((label) => formatDate(label)), datasets: [{ label: 'Recorded entries', data: series.data, borderColor: CHART_COLORS[0], backgroundColor: 'rgba(13,148,136,0.15)', fill: true, tension: 0.35 }] },
         options: { responsive: true, maintainAspectRatio: false },
       });
-      const mix: Record<string, number> = {};
-      this.vault.savings().forEach((row) => { mix[row.category || 'Other'] = (mix[row.category || 'Other'] || 0) + num(row.amount); });
-      mountChart(pie, {
-        type: 'pie',
-        data: { labels: Object.keys(mix).length ? Object.keys(mix) : ['No data'], datasets: [{ data: Object.keys(mix).length ? Object.values(mix) : [1], backgroundColor: CHART_COLORS, borderWidth: 0 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
-      });
+      return;
+    }
+    const mix: Record<string, number> = {};
+    rows.forEach((row) => { mix[row.category || 'Other'] = (mix[row.category || 'Other'] || 0) + num(row.amount); });
+    mountChart(canvas, {
+      type: 'pie',
+      data: { labels: Object.keys(mix), datasets: [{ data: Object.values(mix), backgroundColor: CHART_COLORS, borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
     });
   }
 
@@ -76,12 +90,18 @@ export class SavingsComponent {
     const body = { title: this.form.title.trim(), category: this.form.category, amount: Number(this.form.amount), date: this.form.date, note: this.form.note || '' };
     this.busy.set(true);
     try {
-      if (this.form.id) await this.vault.updateSaving(this.form.id, body); else await this.vault.addSaving(body);
+      const warning = this.form.id ? await this.vault.updateSaving(this.form.id, body) : await this.vault.addSaving(body);
       this.editing.set(false);
+      if (warning) await this.dialog.notice(warning, 'Saved, refresh failed');
     } catch (error) {
-      await this.dialog.notice(error instanceof Error ? error.message : 'Could not save entry');
+      const parsed = parseApiError(error);
+      this.errors.set({ ...errors, ...parsed.fieldErrors, form: parsed.message });
     } finally { this.busy.set(false); }
   }
+  touch(field: string, message: string): void { this.errors.update((current) => assignError(current, field, message)); }
+  titleOk(value: string): string { return Validators.required(value, 'Title'); }
+  amountOk(value: unknown): string { return Number(value) > 0 ? '' : 'Amount must be greater than zero'; }
+  dateOk(value: string): string { return Validators.dateNotFuture(value); }
   async remove(row: Saving): Promise<void> {
     if (await this.dialog.confirm('Are you sure you want to delete this savings entry?')) await this.vault.deleteSaving(row.id);
   }

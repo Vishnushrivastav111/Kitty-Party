@@ -1,0 +1,50 @@
+:host { display: block; }
+
+.graph-stage {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 18px;
+  min-height: 300px;
+  outline: none;
+}
+
+.graph-stage:focus-visible {
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.35);
+}
+
+.graph-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.graph-nav p {
+  margin: 0;
+  font-weight: 650;
+  color: var(--navy);
+  text-align: center;
+}
+
+.graph-nav button {
+  min-width: 96px;
+}
+
+.graph-nav button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .graph-nav {
+    flex-wrap: wrap;
+  }
+  .graph-nav p {
+    flex: 1 1 100%;
+    order: -1;
+  }
+}

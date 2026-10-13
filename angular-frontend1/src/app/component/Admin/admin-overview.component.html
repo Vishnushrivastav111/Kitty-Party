@@ -6,12 +6,13 @@
       <div class="card"><div class="card-icon green"><i class="fas fa-sliders"></i></div><div><h3>Setup done</h3><h2>{{ insights().setupDone }}</h2><p>{{ insights().setupPending }} pending</p></div></div>
       <div class="card"><div class="card-icon orange"><i class="fas fa-comments"></i></div><div><h3>Open feedback</h3><h2>{{ insights().feedbackOpen }}</h2><p>{{ insights().feedbackTotal }} total</p></div></div>
     </div>
-    <div class="charts-grid">
-      <div class="chart-card"><h3><i class="fas fa-chart-pie"></i> Member status</h3><div class="chart-wrap"><canvas #statusPie></canvas></div></div>
-      <div class="chart-card"><h3><i class="fas fa-chart-column"></i> Finance setup</h3><div class="chart-wrap"><canvas #setupBar></canvas></div></div>
-      <div class="chart-card"><h3><i class="fas fa-chart-line"></i> Member joins by month</h3><div class="chart-wrap"><canvas #joinsLine></canvas></div></div>
-      <div class="chart-card"><h3><i class="fas fa-chart-simple"></i> Feedback &amp; news</h3><div class="chart-wrap"><canvas #activityBar></canvas></div></div>
-    </div>
+    <app-graph-pager [index]="graphIndex()" [total]="pages.length" [title]="activeGraph().title" (pageChange)="showGraph($event)">
+      @if (graphEmpty()) {
+        <div class="empty-state">{{ graphEmpty() }}</div>
+      } @else {
+        <div class="chart-wrap"><canvas #stage></canvas></div>
+      }
+    </app-graph-pager>
     <div class="panel">
       <div class="panel-header">
         <h2>Member insights</h2>

@@ -52,6 +52,10 @@ export class WorkspaceService {
   readonly members = signal<VaultUser[]>([]);
   readonly admins = signal<VaultUser[]>([]);
   readonly insights = signal<AdminInsights>(EMPTY_INSIGHTS);
+  readonly refreshWarning = signal('');
+  readonly affordabilityStale = signal(false);
+  readonly planStale = signal(false);
+  private refreshSerial = 0;
 
   needsSetup(): boolean {
     const role = this.auth.user()?.role;
@@ -74,9 +78,25 @@ export class WorkspaceService {
   }
 
   async refresh(): Promise<void> {
+    const serial = ++this.refreshSerial;
     const data = await this.api.get<DashboardPayload>('/dashboard');
+    if (serial !== this.refreshSerial) return;
     this.apply(data);
     this.loaded.set(true);
+    this.refreshWarning.set('');
+  }
+
+  markDependentsStale(): void {
+    this.affordabilityStale.set(true);
+    this.planStale.set(true);
+  }
+
+  acknowledgeAffordability(): void {
+    this.affordabilityStale.set(false);
+  }
+
+  acknowledgePlan(): void {
+    this.planStale.set(false);
   }
 
   private apply(data: DashboardPayload): void {

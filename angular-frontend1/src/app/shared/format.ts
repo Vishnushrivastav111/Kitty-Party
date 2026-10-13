@@ -29,8 +29,11 @@ export function monthStartISO(): string {
 }
 
 export function formatINR(n: unknown): string {
-  const num = Number(n) || 0;
-  return '₹' + num.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  if (n === null || n === undefined || n === '') return '—';
+  const value = Number(n);
+  if (!Number.isFinite(value)) return '—';
+  const rounded = Math.round(value);
+  return '₹' + rounded.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
 export function formatDate(iso?: string | null): string {
@@ -106,7 +109,7 @@ export const Validators = {
   },
   phone(v: string): string {
     if (!v) return 'Phone is required';
-    if (!/^[6-9]\d{9}$/.test(v)) return 'Enter a valid 10-digit Indian mobile number';
+    if (!/^[6-9]\d{9}$/.test(v)) return 'Enter a valid mobile number';
     return '';
   },
   password(v: string): string {
@@ -132,6 +135,12 @@ export const Validators = {
   dateNotFuture(v: string, label = 'Date'): string {
     if (!v) return label + ' is required';
     if (v > todayISO()) return label + ' cannot be in the future';
+    return '';
+  },
+  dateNotPast(v: string, label = 'Deadline'): string {
+    if (!v) return label + ' is required';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return label + ' is not a valid date';
+    if (v < todayISO()) return label + ' cannot be in the past';
     return '';
   },
 };

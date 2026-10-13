@@ -1,6 +1,8 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { parseApiError } from '../../../shared/api-error';
 import { DialogService } from '../../../shared/dialog.service';
+import { assignError } from '../../../shared/field-state';
 import { Validators, formatDate, queryRows } from '../../../shared/format';
 import { VaultUser } from '../../../model/models';
 import { AdminService } from '../../../service/admin.service';
@@ -51,9 +53,15 @@ export class AdminUsersComponent {
       await this.vault.saveMember(this.form.id || null, body);
       this.editing.set(false);
     } catch (error) {
-      await this.dialog.notice(error instanceof Error ? error.message : 'Could not save user', 'Cannot save');
+      const parsed = parseApiError(error);
+      this.errors.set({ ...errors, ...parsed.fieldErrors, form: parsed.message });
     } finally { this.busy.set(false); }
   }
+  touch(field: string, message: string): void { this.errors.update((current) => assignError(current, field, message)); }
+  nameOk(value: string): string { return Validators.name(value); }
+  emailOk(value: string): string { return Validators.email(value.trim()); }
+  phoneOk(value: string): string { return Validators.phone((value || '').trim()); }
+  passwordOk(value: string): string { return this.form.id && !value ? '' : Validators.password(value); }
   async remove(row: VaultUser): Promise<void> {
     if (!(await this.dialog.confirm('Are you sure you want to delete this user?'))) return;
     try { await this.vault.deleteMember(row.id); }

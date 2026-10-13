@@ -3,6 +3,9 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../service/auth.service';
 import { DialogService } from '../../../shared/dialog.service';
+import { parseApiError } from '../../../shared/api-error';
+import { assignError } from '../../../shared/field-state';
+import { API_CAPABILITIES, profileSurplus } from '../../../shared/finance-rules';
 import { asStringList, formatINR, homePath, num, ROLES, todayISO, Validators } from '../../../shared/format';
 import { FinanceService } from '../../../service/finance.service';
 
@@ -53,6 +56,9 @@ export class SetupComponent implements OnInit {
   confirmAccurate = false;
   readonly busy = signal(false);
   readonly errors = signal<Record<string, string>>({});
+  readonly formError = signal('');
+  readonly savedState = signal('');
+  readonly approvalSupported = API_CAPABILITIES.financialSetupApproval;
 
   async ngOnInit(): Promise<void> {
     if (this.auth.user()?.role !== ROLES.USER) {
@@ -87,11 +93,31 @@ export class SetupComponent implements OnInit {
 
   toggle(set: Set<string>, value: string): void {
     if (set.has(value)) set.delete(value); else set.add(value);
+    if (set === this.expenseCats) {
+      this.touch('expenseCats', this.expenseCats.size ? '' : 'Select at least one expense category');
+    }
   }
 
   surplus(): number {
-    return num(this.monthlyIncome) - num(this.monthlyExpenses) - (this.hasEmi === 'yes' ? num(this.loansEmi) : 0);
+    return profileSurplus(num(this.monthlyIncome), num(this.monthlyExpenses));
   }
+
+  touch(field: string, message: string): void {
+    this.errors.update((current) => assignError(current, field, message));
+  }
+  incomeOk(value: unknown): string { return Validators.amount(value, 'Monthly income'); }
+  expenseOk(value: unknown): string { return Validators.amount(value, 'Monthly expenses'); }
+  savingsOk(value: unknown): string { return Validators.amount(value, 'Current savings'); }
+  budgetOk(value: unknown): string { return Validators.amount(value, 'Monthly budget'); }
+  emiOk(value: unknown): string { return Validators.amount(value, 'EMI'); }
+  choiceOk(value: string): string { return value ? '' : 'This field is required'; }
+  goalTitleOk(value: string): string { return Validators.required(value, 'Goal title'); }
+  goalDateOk(value: string): string { return Validators.dateNotPast(value, 'Deadline'); }
+  goalTargetOk(value: unknown): string { return Number(value) > 0 ? '' : 'Target must be greater than zero'; }
+  purchaseOk(value: string): string { return Validators.required(value, 'Item'); }
+  purchaseAmountOk(value: unknown): string { return Number(value) > 0 ? '' : 'Cost must be greater than zero'; }
+  emiDateOk(value: string): string { return Validators.dateNotFuture(value, 'EMI start date'); }
+  setupDateOk(value: string): string { return Validators.dateNotFuture(value, 'As-of date'); }
 
   async skip(): Promise<void> {
     await this.vault.skipSetup();
@@ -121,6 +147,7 @@ export class SetupComponent implements OnInit {
       errors['primaryGoal'] = Validators.required(this.primaryGoal, 'Goal title');
       errors['goalCategory'] = this.goalCategory ? '' : 'Select category';
       errors['goalTarget'] = Number(this.goalTarget) > 0 ? '' : 'Target must be greater than zero';
+      errors['goalDate'] = Validators.dateNotPast(this.goalDate, 'Deadline');
     }
     if (this.hasPurchase === 'yes') {
       errors['purchaseItem'] = Validators.required(this.purchaseItem, 'Item');
@@ -128,6 +155,7 @@ export class SetupComponent implements OnInit {
       errors['purchasePriority'] = this.purchasePriority ? '' : 'Select priority';
     }
     this.errors.set(errors);
+    this.formError.set('');
     if (Object.values(errors).some(Boolean)) return;
     this.busy.set(true);
     try {
@@ -151,18 +179,36 @@ export class SetupComponent implements OnInit {
         budgetStyle: this.budgetStyle,
         setupDate: this.setupDate,
       });
+      const followUp: string[] = [];
       if (num(this.currentSavings) > 0 && !this.vault.savings().some((row) => row.title === 'Opening balance')) {
-        await this.vault.addSaving({ title: 'Opening balance', amount: num(this.currentSavings), category: 'Opening', date: this.setupDate, note: 'From financial setup' });
+        try {
+          await this.vault.addSaving({ title: 'Opening balance', amount: num(this.currentSavings), category: 'Opening', date: this.setupDate, note: 'From financial setup' });
+        } catch (error) {
+          followUp.push(parseApiError(error).message);
+        }
       }
       if (this.hasGoal === 'yes' && this.primaryGoal.trim()) {
-        await this.vault.addGoal({ title: this.primaryGoal.trim(), target: num(this.goalTarget) || 1, saved: 0, deadline: this.goalDate || this.setupDate, status: 'active', category: this.goalCategory || 'Personal' });
+        try {
+          await this.vault.addGoal({ title: this.primaryGoal.trim(), target: num(this.goalTarget) || 1, saved: 0, deadline: this.goalDate, status: 'active', category: this.goalCategory || 'Personal' });
+        } catch (error) {
+          followUp.push(parseApiError(error).message);
+        }
       }
       if (this.hasPurchase === 'yes' && this.purchaseItem.trim()) {
-        await this.vault.checkAfford({ itemName: this.purchaseItem.trim(), amount: num(this.purchaseAmount) || 1, checkDate: this.setupDate, priority: this.purchasePriority || 'Want' });
+        try {
+          await this.vault.checkAfford({ itemName: this.purchaseItem.trim(), amount: num(this.purchaseAmount) || 1, checkDate: this.setupDate, priority: this.purchasePriority || 'Want' });
+        } catch (error) {
+          followUp.push(parseApiError(error).message);
+        }
       }
+      this.savedState.set('Saved by the server. Administrative approval is not available, so this profile is the confirmed record.');
+      if (followUp.length) await this.dialog.notice(followUp.join(' '), 'Profile saved');
       await this.router.navigateByUrl('/dashboard');
     } catch (error) {
-      await this.dialog.notice(error instanceof Error ? error.message : 'Could not save your financial profile');
+      const parsed = parseApiError(error);
+      this.formError.set(parsed.message);
+      this.errors.set({ ...errors, ...parsed.fieldErrors });
+      this.savedState.set('');
     } finally { this.busy.set(false); }
   }
 }

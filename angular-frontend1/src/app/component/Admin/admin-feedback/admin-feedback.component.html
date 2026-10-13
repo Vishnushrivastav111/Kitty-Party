@@ -38,6 +38,7 @@
       <div class="modal">
         <h3>Update status</h3>
         <form (ngSubmit)="saveStatus()" novalidate>
+          @if (statusError()) { <p class="field-error" role="alert">{{ statusError() }}</p> }
           <div class="form-group"><label>Status</label>
             <select name="status" [(ngModel)]="nextStatus"><option value="open">Open</option><option value="in-review">In review</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select>
           </div>

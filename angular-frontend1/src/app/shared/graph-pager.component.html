@@ -1,0 +1,8 @@
+<section class="graph-stage" tabindex="0" (keydown)="onKey($event)" aria-label="Graph pages">
+  <div class="graph-nav" role="navigation" aria-label="Graph pagination">
+    <button type="button" class="btn btn-outline btn-sm" (click)="previous()" [disabled]="index() <= 0">Previous</button>
+    <p>{{ index() + 1 }} of {{ total() }} · {{ title() }}</p>
+    <button type="button" class="btn btn-outline btn-sm" (click)="next()" [disabled]="index() >= total() - 1">Next</button>
+  </div>
+  <ng-content />
+</section>

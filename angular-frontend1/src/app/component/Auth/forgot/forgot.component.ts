@@ -3,6 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../service/auth.service';
 import { DialogService } from '../../../shared/dialog.service';
+import { parseApiError } from '../../../shared/api-error';
+import { assignError, assignErrors } from '../../../shared/field-state';
 import { Validators } from '../../../shared/format';
 
 @Component({
@@ -27,6 +29,24 @@ export class ForgotComponent {
   readonly busy = signal(false);
   readonly errors = signal<Record<string, string>>({});
 
+  touch(field: string, message: string): void { this.errors.update((current) => assignError(current, field, message)); }
+  emailOk(value: string): string { return Validators.email(value.trim()); }
+  onOtp(value: string): void {
+    this.otp = value;
+    this.touch('otp', /^\d{6}$/.test(value.trim()) ? '' : 'Enter the 6-digit verification code');
+  }
+  onPassword(value: string): void {
+    this.password = value;
+    this.errors.update((current) => assignErrors(current, {
+      password: Validators.password(value),
+      confirmPassword: this.confirmPassword || current['confirmPassword'] ? (this.confirmPassword !== value ? 'Passwords do not match' : '') : '',
+    }));
+  }
+  onConfirm(value: string): void {
+    this.confirmPassword = value;
+    this.errors.update((current) => assignError(current, 'confirmPassword', value !== this.password ? 'Passwords do not match' : ''));
+  }
+
   async sendCode(): Promise<void> {
     const email = Validators.email(this.email.trim());
     this.errors.set({ email });
@@ -39,7 +59,8 @@ export class ForgotComponent {
         : 'Verification code sent to your email.';
       await this.dialog.notice(message, 'Verification code');
     } catch (error) {
-      this.errors.set({ email: error instanceof Error ? error.message : 'No account found with this email' });
+      const parsed = parseApiError(error);
+      this.errors.set({ email: parsed.fieldErrors['email'] || parsed.message });
     } finally {
       this.sending.set(false);
     }
@@ -65,7 +86,8 @@ export class ForgotComponent {
       await this.dialog.notice('Password updated. You can sign in now.', 'Password reset');
       await this.router.navigateByUrl('/login');
     } catch (error) {
-      this.errors.set({ ...errors, otp: error instanceof Error ? error.message : 'Could not reset password' });
+      const parsed = parseApiError(error);
+      this.errors.set({ ...errors, ...parsed.fieldErrors, otp: parsed.fieldErrors['otp'] || parsed.message });
     } finally {
       this.busy.set(false);
     }

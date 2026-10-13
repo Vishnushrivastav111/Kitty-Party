@@ -35,11 +35,12 @@
       <div class="modal">
         <h3>{{ form.id ? 'Edit admin' : 'Add admin' }}</h3>
         <form (ngSubmit)="save()" novalidate>
+          @if (errors()['form']) { <p class="field-error" role="alert">{{ errors()['form'] }}</p> }
           <div class="form-grid">
-            <div class="form-group"><label>Full name</label><input name="fullName" [(ngModel)]="form.fullName" /><span class="field-error" [style.display]="errors()['fullName'] ? 'block' : 'none'">{{ errors()['fullName'] }}</span></div>
-            <div class="form-group"><label>Email</label><input type="email" name="email" [(ngModel)]="form.email" /><span class="field-error" [style.display]="errors()['email'] ? 'block' : 'none'">{{ errors()['email'] }}</span></div>
-            <div class="form-group"><label>Phone</label><input name="phone" maxlength="10" [(ngModel)]="form.phone" /><span class="field-error" [style.display]="errors()['phone'] ? 'block' : 'none'">{{ errors()['phone'] }}</span></div>
-            <div class="form-group"><label>Password</label><input type="password" name="password" [(ngModel)]="password" [placeholder]="form.id ? 'Leave blank to keep current' : 'Create password'" /><span class="field-error" [style.display]="errors()['password'] ? 'block' : 'none'">{{ errors()['password'] }}</span></div>
+            <div class="form-group"><label for="adminName">Full name</label><input id="adminName" name="fullName" [(ngModel)]="form.fullName" placeholder="e.g. Vishnu Kumar Shrivastav" (ngModelChange)="touch('fullName', nameOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['fullName'] ? 'block' : 'none'">{{ errors()['fullName'] }}</span></div>
+            <div class="form-group"><label for="adminEmail">Email</label><input id="adminEmail" type="email" name="email" [(ngModel)]="form.email" placeholder="e.g. name@example.com" (ngModelChange)="touch('email', emailOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['email'] ? 'block' : 'none'">{{ errors()['email'] }}</span></div>
+            <div class="form-group"><label for="adminPhone">Phone</label><input id="adminPhone" name="phone" maxlength="10" [(ngModel)]="form.phone" placeholder="e.g. 9876543210" (ngModelChange)="touch('phone', phoneOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['phone'] ? 'block' : 'none'">{{ errors()['phone'] }}</span></div>
+            <div class="form-group"><label for="adminPassword">Password</label><input id="adminPassword" type="password" name="password" autocomplete="new-password" [(ngModel)]="password" [placeholder]="form.id ? 'Leave blank to keep current' : 'Create password'" (ngModelChange)="touch('password', passwordOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['password'] ? 'block' : 'none'">{{ errors()['password'] }}</span></div>
             <div class="form-group"><label>Status</label><select name="status" [(ngModel)]="form.status"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
           </div>
           <div class="modal-actions">

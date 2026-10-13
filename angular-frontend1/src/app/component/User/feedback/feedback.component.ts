@@ -1,7 +1,9 @@
 import { NgClass } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { parseApiError } from '../../../shared/api-error';
 import { DialogService } from '../../../shared/dialog.service';
+import { assignError } from '../../../shared/field-state';
 import { Validators, formatDate, queryRows } from '../../../shared/format';
 import { Feedback, FeedbackHistory } from '../../../model/models';
 import { UserService } from '../../../service/user.service';
@@ -57,16 +59,21 @@ export class FeedbackComponent {
       if (this.form.id) await this.vault.updateFeedback(this.form.id, body); else await this.vault.addFeedback(body);
       this.editing.set(false);
     } catch (error) {
-      await this.dialog.notice(error instanceof Error ? error.message : 'Could not save feedback');
+      const parsed = parseApiError(error);
+      this.errors.set({ ...errors, ...parsed.fieldErrors, form: parsed.message });
     } finally { this.busy.set(false); }
   }
+  touch(field: string, message: string): void { this.errors.update((current) => assignError(current, field, message)); }
+  subjectOk(value: string): string { return Validators.required(value, 'Subject'); }
+  messageOk(value: string): string { return Validators.required(value, 'Message'); }
   async showHistory(row: Feedback): Promise<void> {
-    this.historyMeta = row.subject;
-    this.history.set(await this.vault.history(row.id));
-    this.historyOpen.set(true);
-  }
-  async remove(row: Feedback): Promise<void> {
-    if (await this.dialog.confirm('Delete this feedback?')) await this.vault.deleteFeedback(row.id);
+    try {
+      this.historyMeta = row.subject;
+      this.history.set(await this.vault.history(row.id));
+      this.historyOpen.set(true);
+    } catch (error) {
+      await this.dialog.notice(parseApiError(error).message, 'Feedback history');
+    }
   }
 }
 

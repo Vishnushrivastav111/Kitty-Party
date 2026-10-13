@@ -1,6 +1,8 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { parseApiError } from '../../../shared/api-error';
 import { DialogService } from '../../../shared/dialog.service';
+import { assignError } from '../../../shared/field-state';
 import { Validators, formatDate, formatINR, num, queryRows, todayISO } from '../../../shared/format';
 import { AffordCheck } from '../../../model/models';
 import { FinanceService } from '../../../service/finance.service';
@@ -14,7 +16,7 @@ import { PagerComponent } from '../../../shared/pager.component';
   styleUrl: './affordability.component.scss',
 })
 export class AffordabilityComponent {
-  private readonly vault = inject(FinanceService);
+  readonly vault = inject(FinanceService);
   private readonly dialog = inject(DialogService);
   readonly today = todayISO();
   readonly money = formatINR;
@@ -29,6 +31,8 @@ export class AffordabilityComponent {
   readonly pageNo = signal(1);
   readonly busy = signal(false);
   readonly errors = signal<Record<string, string>>({});
+  readonly formError = signal('');
+  readonly recheckHint = signal('');
   readonly page = computed(() => queryRows(this.vault.affordChecks(), this.search(), ['itemName', 'verdict', 'priority'], { level: this.level() }, this.pageNo(), 5));
 
   async check(): Promise<void> {
@@ -38,14 +42,33 @@ export class AffordabilityComponent {
       checkDate: Validators.dateNotFuture(this.checkDate, 'Check date'),
     };
     this.errors.set(errors);
+    this.formError.set('');
     if (Object.values(errors).some(Boolean)) return;
     this.busy.set(true);
     try {
       const row = await this.vault.checkAfford({ itemName: this.itemName.trim(), amount: Number(this.amount), checkDate: this.checkDate, priority: this.priority });
       this.result.set(row);
+      this.recheckHint.set('');
     } catch (error) {
-      await this.dialog.notice(error instanceof Error ? error.message : 'Could not check affordability');
+      const parsed = parseApiError(error);
+      this.formError.set(parsed.message);
+      this.errors.update((current) => ({ ...current, ...parsed.fieldErrors }));
     } finally { this.busy.set(false); }
+  }
+  touch(field: string, message: string): void { this.errors.update((current) => assignError(current, field, message)); }
+  itemOk(value: string): string { return Validators.required(value, 'Item name'); }
+  amountOk(value: unknown): string { return Number(value) > 0 ? '' : 'Amount must be greater than zero'; }
+  dateOk(value: string): string { return Validators.dateNotFuture(value, 'Check date'); }
+  async recheck(): Promise<void> {
+    const last = this.result() || this.vault.affordChecks()[0];
+    if (!last?.itemName || !(Number(last.amount) > 0)) {
+      this.recheckHint.set('Run a new check. The previous purchase details are not available.');
+      return;
+    }
+    this.itemName = last.itemName;
+    this.amount = Number(last.amount);
+    this.priority = last.priority || this.priority;
+    await this.check();
   }
   async remove(row: AffordCheck): Promise<void> {
     if (await this.dialog.confirm('Are you sure you want to delete this check?')) await this.vault.deleteAfford(row.id);

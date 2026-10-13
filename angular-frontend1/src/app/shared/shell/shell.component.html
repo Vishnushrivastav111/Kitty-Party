@@ -44,10 +44,16 @@
           <div class="topbar-title">{{ title() }}</div>
           <div class="topbar-date"><i class="fas fa-calendar-day"></i> <span>{{ dateLabel }}</span></div>
         </div>
+        @if (vault.refreshWarning()) {
+          <div class="alert-box warning" role="alert">
+            {{ vault.refreshWarning() }}
+            <button type="button" class="btn btn-outline btn-sm" (click)="retryRefresh()">Retry refresh</button>
+          </div>
+        }
         @if (vault.loading() && !vault.loaded()) {
           <div class="empty-state">Loading your workspace…</div>
         } @else if (vault.error() && !vault.loaded()) {
-          <div class="alert-box danger">{{ vault.error() }}</div>
+          <div class="alert-box danger" role="alert">{{ vault.error() }}</div>
         } @else {
           <router-outlet />
         }

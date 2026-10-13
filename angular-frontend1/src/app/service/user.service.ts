@@ -15,9 +15,16 @@ export class UserService {
   readonly notifications = this.workspace.notifications;
   readonly feedback = this.workspace.feedback;
   readonly news = this.workspace.news;
+  readonly refreshWarning = this.workspace.refreshWarning;
+  readonly affordabilityStale = this.workspace.affordabilityStale;
+  readonly planStale = this.workspace.planStale;
 
   load(): Promise<void> {
     return this.workspace.load();
+  }
+
+  retryRefresh(): Promise<void> {
+    return this.workspace.refresh();
   }
 
   async markRead(id: string): Promise<void> {
@@ -47,11 +54,6 @@ export class UserService {
 
   async updateFeedback(id: string, body: Record<string, unknown>): Promise<void> {
     await this.api.put(`/feedback/${id}`, body);
-    await this.workspace.refresh();
-  }
-
-  async deleteFeedback(id: string): Promise<void> {
-    await this.api.delete(`/feedback/${id}`);
     await this.workspace.refresh();
   }
 

@@ -1,16 +1,10 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { parseApiError } from '../shared/api-error';
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-  ) {
-    super(message);
-  }
-}
+export { ApiError } from '../shared/api-error';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -56,15 +50,7 @@ export class ApiService {
       }
       return payload as T;
     } catch (error) {
-      if (error instanceof HttpErrorResponse) {
-        const body = error.error;
-        const message =
-          (body && typeof body === 'object' && 'message' in body && String(body.message)) ||
-          error.message ||
-          'Request failed';
-        throw new ApiError(message, error.status);
-      }
-      throw error;
+      throw parseApiError(error);
     }
   }
 }

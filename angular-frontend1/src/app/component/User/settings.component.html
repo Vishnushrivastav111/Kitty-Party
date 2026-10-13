@@ -3,10 +3,13 @@
     <div class="panel">
       <h2 style="margin-bottom:14px;color:var(--navy)">Profile</h2>
       <form (ngSubmit)="saveProfile()" novalidate>
+        @if (errors()['form']) { <p class="field-error" role="alert">{{ errors()['form'] }}</p> }
         <div class="form-grid">
-          <div class="form-group"><label>Full name</label><input name="fullName" [(ngModel)]="fullName" /><span class="field-error" [style.display]="errors()['fullName'] ? 'block' : 'none'">{{ errors()['fullName'] }}</span></div>
-          <div class="form-group"><label>Email</label><input type="email" name="email" [(ngModel)]="email" /><span class="field-error" [style.display]="errors()['email'] ? 'block' : 'none'">{{ errors()['email'] }}</span></div>
-          <div class="form-group"><label>Phone</label><input name="phone" maxlength="10" [(ngModel)]="phone" /><span class="field-error" [style.display]="errors()['phone'] ? 'block' : 'none'">{{ errors()['phone'] }}</span></div>
+          <div class="form-group"><label for="setFirst">First name</label><input id="setFirst" name="firstName" [ngModel]="firstName" (ngModelChange)="onName('firstName', $event, 'First name', true)" placeholder="e.g. Vishnu" /><span class="field-error" role="alert" [style.display]="errors()['firstName'] ? 'block' : 'none'">{{ errors()['firstName'] }}</span></div>
+          <div class="form-group"><label for="setMiddle">Middle name</label><input id="setMiddle" name="middleName" [ngModel]="middleName" (ngModelChange)="onName('middleName', $event, 'Middle name', false)" placeholder="e.g. Kumar" /><span class="field-error" role="alert" [style.display]="errors()['middleName'] ? 'block' : 'none'">{{ errors()['middleName'] }}</span></div>
+          <div class="form-group"><label for="setLast">Last name</label><input id="setLast" name="lastName" [ngModel]="lastName" (ngModelChange)="onName('lastName', $event, 'Last name', true)" placeholder="e.g. Shrivastav" /><span class="field-error" role="alert" [style.display]="errors()['lastName'] ? 'block' : 'none'">{{ errors()['lastName'] }}</span></div>
+          <div class="form-group"><label for="setEmail">Email</label><input id="setEmail" type="email" name="email" [ngModel]="email" (ngModelChange)="onEmail($event)" placeholder="e.g. name@example.com" /><span class="field-error" role="alert" [style.display]="errors()['email'] ? 'block' : 'none'">{{ errors()['email'] }}</span></div>
+          <div class="form-group"><label for="setPhone">Mobile number</label><input id="setPhone" name="phone" maxlength="10" [ngModel]="phone" (ngModelChange)="onPhone($event)" placeholder="e.g. 9876543210" /><span class="field-error" role="alert" [style.display]="errors()['phone'] ? 'block' : 'none'">{{ errors()['phone'] }}</span></div>
         </div>
         <div class="form-actions"><button class="btn btn-primary" [disabled]="busy()">Save profile</button></div>
       </form>
@@ -15,9 +18,9 @@
       <h2 style="margin-bottom:14px;color:var(--navy)">Change password</h2>
       <form (ngSubmit)="savePassword()" novalidate>
         <div class="form-grid">
-          <div class="form-group"><label>Current password</label><input type="password" name="current" [(ngModel)]="currentPassword" /><span class="field-error" [style.display]="passErrors()['current'] ? 'block' : 'none'">{{ passErrors()['current'] }}</span></div>
-          <div class="form-group"><label>New password</label><input type="password" name="next" [(ngModel)]="newPassword" /><span class="field-error" [style.display]="passErrors()['next'] ? 'block' : 'none'">{{ passErrors()['next'] }}</span></div>
-          <div class="form-group"><label>Confirm password</label><input type="password" name="confirm" [(ngModel)]="confirmPassword" /><span class="field-error" [style.display]="passErrors()['confirm'] ? 'block' : 'none'">{{ passErrors()['confirm'] }}</span></div>
+          <div class="form-group"><label for="setCurrent">Current password</label><input id="setCurrent" type="password" name="current" autocomplete="current-password" [ngModel]="currentPassword" (ngModelChange)="onCurrent($event)" placeholder="Enter current password" /><span class="field-error" role="alert" [style.display]="passErrors()['current'] ? 'block' : 'none'">{{ passErrors()['current'] }}</span></div>
+          <div class="form-group"><label for="setNext">New password</label><input id="setNext" type="password" name="next" autocomplete="new-password" [ngModel]="newPassword" (ngModelChange)="onNewPassword($event)" placeholder="At least 8 characters" /><span class="field-error" role="alert" [style.display]="passErrors()['next'] ? 'block' : 'none'">{{ passErrors()['next'] }}</span></div>
+          <div class="form-group"><label for="setConfirm">Confirm password</label><input id="setConfirm" type="password" name="confirm" autocomplete="new-password" [ngModel]="confirmPassword" (ngModelChange)="onConfirm($event)" placeholder="Re-enter password" /><span class="field-error" role="alert" [style.display]="passErrors()['confirm'] ? 'block' : 'none'">{{ passErrors()['confirm'] }}</span></div>
         </div>
         <div class="form-actions"><button class="btn btn-navy" [disabled]="passBusy()">Update password</button></div>
       </form>

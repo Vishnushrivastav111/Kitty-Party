@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../service/auth.service';
+import { assignError, assignErrors } from '../../shared/field-state';
 import { homePath, Validators } from '../../shared/format';
 import { FinanceService } from '../../service/finance.service';
 
@@ -22,16 +23,32 @@ export class LoginComponent {
   readonly show = signal(false);
   readonly busy = signal(false);
   readonly errors = signal<Record<string, string>>({});
+  readonly formError = signal('');
+
+  onEmail(value: string): void {
+    this.email = value;
+    this.formError.set('');
+    this.errors.update((current) => assignError(current, 'email', Validators.email(value.trim())));
+  }
+
+  onPassword(value: string): void {
+    this.password = value;
+    this.formError.set('');
+    const message = !value ? 'Password is required' : value.length < 8 ? 'Password must be at least 8 characters' : '';
+    this.errors.update((current) => assignError(current, 'password', message));
+  }
 
   async submit(): Promise<void> {
     const emailErr = Validators.email(this.email.trim());
     const passwordErr = !this.password ? 'Password is required' : this.password.length < 8 ? 'Password must be at least 8 characters' : '';
     this.errors.set({ email: emailErr, password: passwordErr });
+    this.formError.set('');
     if (emailErr || passwordErr) return;
     this.busy.set(true);
     const result = await this.auth.login(this.email.trim(), this.password);
     if (!result.ok || !result.user) {
-      this.errors.set({ email: '', password: result.message || 'Invalid email or password' });
+      this.formError.set(result.message || 'The server did not confirm the sign-in.');
+      this.errors.update((current) => assignErrors(current, result.fieldErrors || {}));
       this.busy.set(false);
       return;
     }

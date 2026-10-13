@@ -1,6 +1,8 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { parseApiError } from '../../../shared/api-error';
 import { DialogService } from '../../../shared/dialog.service';
+import { assignError } from '../../../shared/field-state';
 import { TX_CATEGORIES, Validators, formatDate, formatINR, queryRows, todayISO } from '../../../shared/format';
 import { Tx } from '../../../model/models';
 import { FinanceService } from '../../../service/finance.service';
@@ -30,6 +32,7 @@ export class TransactionsComponent {
   form = blankTx();
   readonly page = computed(() => queryRows(this.vault.transactions(), this.search(), ['name', 'category', 'type', 'date'], { type: this.type(), category: this.category() }, this.pageNo(), 6));
 
+  touch(field: string, message: string): void { this.errors.update((current) => assignError(current, field, message)); }
   setSearch(value: string): void { this.search.set(value); this.pageNo.set(1); }
   setFilter(key: 'type' | 'category', value: string): void {
     if (key === 'type') this.type.set(value); else this.category.set(value);
@@ -55,19 +58,28 @@ export class TransactionsComponent {
     const body = { date: this.form.date, name: this.form.name.trim(), category: this.form.category, type: this.form.type, amount: Number(this.form.amount) };
     this.busy.set(true);
     try {
-      if (this.form.id) await this.vault.updateTx(this.form.id, body);
-      else await this.vault.addTx(body);
+      const warning = this.form.id ? await this.vault.updateTx(this.form.id, body) : await this.vault.addTx(body);
       this.editing.set(false);
+      if (warning) await this.dialog.notice(warning, 'Saved, refresh failed');
     } catch (error) {
-      await this.dialog.notice(error instanceof Error ? error.message : 'Could not save transaction');
+      const parsed = parseApiError(error);
+      this.errors.set({ ...errors, ...parsed.fieldErrors, form: parsed.message });
     } finally { this.busy.set(false); }
   }
   async remove(row: Tx): Promise<void> {
-    if (await this.dialog.confirm('Are you sure you want to delete this transaction?')) await this.vault.deleteTx(row.id);
+    const confirmed = await this.dialog.confirm(
+      'Request deletion of this transaction? It stays in your records unless an administrator approves it through a supported API.',
+      { title: 'Request deletion', okText: 'Submit request', cancelText: 'Cancel' },
+    );
+    if (!confirmed) return;
+    const result = this.vault.requestTransactionDeletion(row.id);
+    await this.dialog.notice(result.message, 'Deletion not completed');
   }
-  async clearAll(): Promise<void> {
-    if (await this.dialog.confirm('Delete every transaction? This action cannot be undone.')) await this.vault.clearTx();
-  }
+
+  dateOk(value: string): string { return Validators.dateNotFuture(value); }
+  nameOk(value: string): string { return Validators.required(value, 'Name'); }
+  categoryOk(value: string): string { return Validators.required(value, 'Category'); }
+  amountOk(value: unknown): string { return Number(value) > 0 ? '' : 'Amount must be greater than zero'; }
 }
 
 function blankTx(): Tx {

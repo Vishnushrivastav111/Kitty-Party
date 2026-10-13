@@ -17,17 +17,29 @@
       <p>Live overview with charts, progress, and your saved data</p>
     </div>
     <div class="cards">
-      <div class="card"><div class="card-icon navy"><i class="fas fa-heart-pulse"></i></div><div><h3>Financial health</h3><h2>{{ stats().health }}/100</h2><div class="progress c1"><span [style.width.%]="stats().health"></span></div></div></div>
-      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Total savings</h3><h2>{{ money(stats().totalSavings) }}</h2><div class="progress c6"><span [style.width.%]="saveWidth()"></span></div></div></div>
-      <div class="card"><div class="card-icon orange"><i class="fas fa-chart-pie"></i></div><div><h3>Monthly budget</h3><h2>{{ money(stats().monthBudget) }}</h2><p [class.negative]="stats().spent > stats().monthBudget" [class.positive]="stats().spent <= stats().monthBudget">Spent {{ money(stats().spent) }}</p><div class="progress c3"><span [style.width.%]="budgetPct()"></span></div></div></div>
-      <div class="card"><div class="card-icon teal"><i class="fas fa-bullseye"></i></div><div><h3>Active goals</h3><h2>{{ stats().activeGoals }}</h2><div class="progress c2"><span [style.width.%]="goalWidth()"></span></div></div></div>
+      <div class="card"><div class="card-icon navy"><i class="fas fa-heart-pulse"></i></div><div><h3>Financial health</h3><h2>{{ stats() ? stats()!.health + '/100' : '—' }}</h2><div class="progress c1"><span [style.width.%]="stats()?.health || 0"></span></div></div></div>
+      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Total savings</h3><h2>{{ stats() ? money(stats()!.totalSavings) : '—' }}</h2><div class="progress c6"><span [style.width.%]="saveWidth()"></span></div></div></div>
+      <div class="card"><div class="card-icon orange"><i class="fas fa-chart-pie"></i></div><div><h3>Monthly budget</h3><h2>{{ stats() ? money(stats()!.monthBudget) : '—' }}</h2><p [class.negative]="!!stats() && stats()!.spent > stats()!.monthBudget" [class.positive]="!!stats() && stats()!.spent <= stats()!.monthBudget">Spent {{ stats() ? money(stats()!.spent) : '—' }}</p><div class="progress c3"><span [style.width.%]="budgetPct()"></span></div></div></div>
+      <div class="card"><div class="card-icon teal"><i class="fas fa-bullseye"></i></div><div><h3>Active goals</h3><h2>{{ stats() ? stats()!.activeGoals : '—' }}</h2><div class="progress c2"><span [style.width.%]="goalWidth()"></span></div></div></div>
     </div>
-    <div class="charts-grid">
-      <div class="chart-card"><h3><i class="fas fa-chart-pie"></i> Expense mix</h3><div class="chart-wrap"><canvas #expensePie></canvas></div></div>
-      <div class="chart-card"><h3><i class="fas fa-chart-column"></i> Income vs expense</h3><div class="chart-wrap"><canvas #incomeBar></canvas></div></div>
-      <div class="chart-card"><h3><i class="fas fa-chart-line"></i> Savings trend</h3><div class="chart-wrap"><canvas #savingsLine></canvas></div></div>
-      <div class="chart-card"><h3><i class="fas fa-gauge-high"></i> Health &amp; budget use</h3><div class="chart-wrap"><canvas #healthDoughnut></canvas></div></div>
+    <div class="cards">
+      <div class="card"><div class="card-icon green"><i class="fas fa-arrow-down"></i></div><div><h3>Monthly income</h3><h2>{{ stats() ? money(stats()!.income) : '—' }}</h2></div></div>
+      <div class="card"><div class="card-icon orange"><i class="fas fa-arrow-up"></i></div><div><h3>Monthly expenses</h3><h2>{{ stats() ? money(stats()!.expenses) : '—' }}</h2><p>Transaction spending {{ stats() ? money(stats()!.spent) : '—' }}</p></div></div>
+      <div class="card"><div class="card-icon teal"><i class="fas fa-scale-balanced"></i></div><div><h3>Surplus</h3><h2>{{ surplus() === null ? '—' : money(surplus()) }}</h2><p>Server rule: income minus expenses. EMI is not subtracted again.</p></div></div>
+      <div class="card"><div class="card-icon navy"><i class="fas fa-wallet"></i></div><div><h3>Budget remaining</h3><h2>{{ budgetLeft() === null ? '—' : money(budgetLeft()!.remaining) }}</h2>@if (budgetLeft()?.overrun) { <p class="negative">Over by {{ money(budgetLeft()!.overrun) }}</p> }</div></div>
     </div>
+    @if (vault.finance()) {
+      <div class="alert-box info">Financial profile is the record saved by the server. The API does not include an approval step for setup.</div>
+    } @else {
+      <div class="alert-box warning">No saved financial profile is available. Unapproved or missing setup values are not shown as confirmed data.</div>
+    }
+    <app-graph-pager [index]="graphIndex()" [total]="graphs().length" [title]="activeGraph().title" (pageChange)="showGraph($event)">
+      @if (!activeGraph().hasData) {
+        <div class="empty-state">{{ activeGraph().empty }}</div>
+      } @else {
+        <div class="chart-wrap"><canvas #stage></canvas></div>
+      }
+    </app-graph-pager>
     <div class="panel">
       <div class="panel-header">
         <h2>Recent transactions</h2>

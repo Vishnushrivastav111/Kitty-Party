@@ -1,5 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { AffordCheck, FinanceProfile, Report } from '../model/models';
+import { parseApiError } from '../shared/api-error';
+import { DeletionRequestResult, transactionDeletionRequest } from '../shared/finance-rules';
 import { ApiService } from './api.service';
 import { WorkspaceService } from './workspace.service';
 
@@ -20,6 +22,9 @@ export class FinanceService {
   readonly budgets = this.workspace.budgets;
   readonly reports = this.workspace.reports;
   readonly affordChecks = this.workspace.affordChecks;
+  readonly refreshWarning = this.workspace.refreshWarning;
+  readonly affordabilityStale = this.workspace.affordabilityStale;
+  readonly planStale = this.workspace.planStale;
 
   load(): Promise<void> {
     return this.workspace.load();
@@ -29,117 +34,127 @@ export class FinanceService {
     return this.workspace.needsSetup();
   }
 
+  acknowledgePlan(): void {
+    this.workspace.acknowledgePlan();
+  }
+
   async saveFinance(body: Record<string, unknown>): Promise<FinanceProfile> {
     const row = await this.api.put<FinanceProfile>('/finance', body);
-    await this.workspace.refresh();
+    await this.refreshAfterWrite();
     return row;
   }
 
   async skipSetup(): Promise<void> {
     await this.api.post('/finance/skip', {});
-    await this.workspace.refresh();
+    await this.refreshAfterWrite();
   }
 
-  async addTx(body: Record<string, unknown>): Promise<void> {
+  async addTx(body: Record<string, unknown>): Promise<string> {
     await this.api.post('/transactions', body);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async updateTx(id: string, body: Record<string, unknown>): Promise<void> {
+  async updateTx(id: string, body: Record<string, unknown>): Promise<string> {
     await this.api.put(`/transactions/${id}`, body);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async deleteTx(id: string): Promise<void> {
-    await this.api.delete(`/transactions/${id}`);
-    await this.workspace.refresh();
+  requestTransactionDeletion(_id: string): DeletionRequestResult {
+    return transactionDeletionRequest();
   }
 
-  async clearTx(): Promise<void> {
-    await this.api.delete('/transactions');
-    await this.workspace.refresh();
-  }
-
-  async addGoal(body: Record<string, unknown>): Promise<void> {
+  async addGoal(body: Record<string, unknown>): Promise<string> {
     await this.api.post('/goals', body);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async updateGoal(id: string, body: Record<string, unknown>): Promise<void> {
+  async updateGoal(id: string, body: Record<string, unknown>): Promise<string> {
     await this.api.put(`/goals/${id}`, body);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async deleteGoal(id: string): Promise<void> {
+  async deleteGoal(id: string): Promise<string> {
     await this.api.delete(`/goals/${id}`);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async clearGoals(): Promise<void> {
+  async clearGoals(): Promise<string> {
     await this.api.delete('/goals');
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async addSaving(body: Record<string, unknown>): Promise<void> {
+  async addSaving(body: Record<string, unknown>): Promise<string> {
     await this.api.post('/savings', body);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async updateSaving(id: string, body: Record<string, unknown>): Promise<void> {
+  async updateSaving(id: string, body: Record<string, unknown>): Promise<string> {
     await this.api.put(`/savings/${id}`, body);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async deleteSaving(id: string): Promise<void> {
+  async deleteSaving(id: string): Promise<string> {
     await this.api.delete(`/savings/${id}`);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async clearSavings(): Promise<void> {
+  async clearSavings(): Promise<string> {
     await this.api.delete('/savings');
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async addBudget(body: Record<string, unknown>): Promise<void> {
+  async addBudget(body: Record<string, unknown>): Promise<string> {
     await this.api.post('/budgets', body);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async updateBudget(id: string, body: Record<string, unknown>): Promise<void> {
+  async updateBudget(id: string, body: Record<string, unknown>): Promise<string> {
     await this.api.put(`/budgets/${id}`, body);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async deleteBudget(id: string): Promise<void> {
+  async deleteBudget(id: string): Promise<string> {
     await this.api.delete(`/budgets/${id}`);
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
-  async clearBudgets(): Promise<void> {
+  async clearBudgets(): Promise<string> {
     await this.api.delete('/budgets');
-    await this.workspace.refresh();
+    return this.refreshAfterWrite();
   }
 
   async generateReport(body: { fromDate: string; toDate: string; type: string }): Promise<Report> {
     const row = await this.api.post<Report>('/reports/generate', body);
-    await this.workspace.refresh();
+    await this.refreshAfterWrite();
     return row;
-  }
-
-  async deleteReport(id: string): Promise<void> {
-    await this.api.delete(`/reports/${id}`);
-    await this.workspace.refresh();
-  }
-
-  async clearReports(): Promise<void> {
-    await this.api.delete('/reports');
-    await this.workspace.refresh();
   }
 
   async checkAfford(body: Record<string, unknown>): Promise<AffordCheck> {
     const row = await this.api.post<AffordCheck>('/affordability/check', body);
-    await this.workspace.refresh();
+    await this.refreshQuietly();
+    this.workspace.acknowledgeAffordability();
     return row;
+  }
+
+  async monthlySummary(userId: string): Promise<Record<string, unknown>> {
+    return this.api.get<Record<string, unknown>>(`/finance/profile/${userId}/summary`);
+  }
+
+  private async refreshAfterWrite(): Promise<string> {
+    const warning = await this.refreshQuietly();
+    this.workspace.markDependentsStale();
+    return warning;
+  }
+
+  private async refreshQuietly(): Promise<string> {
+    try {
+      await this.workspace.refresh();
+      return '';
+    } catch (error) {
+      const message = parseApiError(error).message;
+      this.workspace.refreshWarning.set(message);
+      return message;
+    }
   }
 
   async deleteAfford(id: string): Promise<void> {

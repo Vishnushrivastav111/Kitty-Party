@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { ApiError } from '../shared/api-error';
 import { ApiService } from './api.service';
 
 export interface VaultUser {
@@ -22,7 +23,7 @@ export class AuthService {
   readonly token = signal(localStorage.getItem(TOKEN_KEY) || '');
   readonly loggedIn = computed(() => !!this.token() && !!this.user());
 
-  async login(email: string, password: string): Promise<{ ok: boolean; message?: string; user?: VaultUser }> {
+  async login(email: string, password: string): Promise<{ ok: boolean; message?: string; fieldErrors?: Record<string, string>; user?: VaultUser }> {
     try {
       const res = await this.api.raw<{ ok: boolean; token?: string; message?: string; user?: VaultUser }>(
         'POST',
@@ -30,12 +31,13 @@ export class AuthService {
         { email, password },
       );
       if (!res?.ok || !res.token || !res.user) {
-        return { ok: false, message: res?.message || 'Invalid email or password' };
+        return { ok: false, message: res?.message || 'The server did not confirm the sign-in.' };
       }
       this.persist(res.token, res.user);
       return { ok: true, user: res.user };
     } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : 'Invalid email or password' };
+      const parsed = error instanceof ApiError ? error : null;
+      return { ok: false, message: parsed?.message || 'The server did not confirm the sign-in.', fieldErrors: parsed?.fieldErrors };
     }
   }
 
@@ -45,12 +47,17 @@ export class AuthService {
     phone: string;
     password: string;
     confirmPassword: string;
-  }): Promise<{ ok: boolean; message?: string; user?: VaultUser }> {
+  }): Promise<{ ok: boolean; message?: string; fieldErrors?: Record<string, string>; user?: VaultUser }> {
     try {
       const user = await this.api.post<VaultUser>('/auth/register', { ...data, termsAccepted: true });
       return { ok: true, user };
     } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : 'Email already registered' };
+      const parsed = error instanceof ApiError ? error : null;
+      return {
+        ok: false,
+        message: parsed?.message || 'The server did not complete registration.',
+        fieldErrors: parsed?.fieldErrors,
+      };
     }
   }
 

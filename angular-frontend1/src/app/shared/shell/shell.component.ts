@@ -74,6 +74,10 @@ export class ShellComponent implements OnInit {
     document.body.classList.remove('sidebar-open');
   }
 
+  retryRefresh(): void {
+    this.vault.retryRefresh().catch(() => undefined);
+  }
+
   private syncTitle(): void {
     let current = this.route;
     while (current.firstChild) current = current.firstChild;
@@ -91,8 +95,9 @@ function buildNav(role: string): NavItem[] {
       { kind: 'section', title: 'Admin' },
       link('/admin', 'Dashboard', 'gauge-high', 'nav-blue', 0),
       link('/admin/users', 'Manage Users', 'users', 'nav-violet', 1),
-      link('/admin/feedback', 'Feedback', 'comments', 'nav-fuchsia', 2),
-      link('/admin/news', 'News', 'newspaper', 'nav-amber', 3),
+      link('/admin/approvals', 'Approvals', 'clipboard-check', 'nav-teal', 2),
+      link('/admin/feedback', 'Feedback', 'comments', 'nav-fuchsia', 3),
+      link('/admin/news', 'News', 'newspaper', 'nav-amber', 4),
       { kind: 'section', title: 'Super Admin' },
       link('/admin/admins', 'Manage Admins', 'user-shield', 'nav-gold', 4),
       { kind: 'section', title: 'Account' },
@@ -107,8 +112,9 @@ function buildNav(role: string): NavItem[] {
       { kind: 'section', title: 'Admin' },
       link('/admin', 'Dashboard', 'gauge-high', 'nav-blue', 0),
       link('/admin/users', 'Manage Users', 'users', 'nav-violet', 1),
-      link('/admin/feedback', 'Feedback', 'comments', 'nav-fuchsia', 2),
-      link('/admin/news', 'News', 'newspaper', 'nav-amber', 3),
+      link('/admin/approvals', 'Approvals', 'clipboard-check', 'nav-teal', 2),
+      link('/admin/feedback', 'Feedback', 'comments', 'nav-fuchsia', 3),
+      link('/admin/news', 'News', 'newspaper', 'nav-amber', 4),
       { kind: 'section', title: 'Account' },
       link('/settings', 'Settings', 'gear', 'nav-slate', 4),
       link('/help', 'Help & Support', 'headset', 'nav-lime', 5),
@@ -124,7 +130,8 @@ function buildNav(role: string): NavItem[] {
     link('/transactions', 'Transactions', 'arrow-right-arrow-left', 'nav-sky', 3),
     link('/budget', 'Budget', 'chart-pie', 'nav-orange', 4),
     link('/affordability', 'Affordability', 'scale-balanced', 'nav-cyan', 5),
-    link('/notifications', 'Notifications', 'bell', 'nav-rose', 6),
+    link('/planning', 'Planning', 'compass', 'nav-indigo', 6),
+    link('/notifications', 'Notifications', 'bell', 'nav-rose', 7),
     link('/news', 'News', 'newspaper', 'nav-cyan', 7),
     link('/reports', 'Reports', 'file-lines', 'nav-indigo', 8),
     { kind: 'section', title: 'Support' },

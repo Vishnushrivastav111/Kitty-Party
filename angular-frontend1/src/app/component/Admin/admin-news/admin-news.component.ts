@@ -1,6 +1,8 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { parseApiError } from '../../../shared/api-error';
 import { DialogService } from '../../../shared/dialog.service';
+import { assignError } from '../../../shared/field-state';
 import { Validators, formatDate, queryRows } from '../../../shared/format';
 import { NewsItem } from '../../../model/models';
 import { AdminService } from '../../../service/admin.service';
@@ -42,9 +44,13 @@ export class AdminNewsComponent {
       if (this.form.id) await this.vault.updateNews(this.form.id, body); else await this.vault.addNews(body);
       this.editing.set(false);
     } catch (error) {
-      await this.dialog.notice(error instanceof Error ? error.message : 'Could not save news');
+      const parsed = parseApiError(error);
+      this.errors.set({ ...errors, ...parsed.fieldErrors, form: parsed.message });
     } finally { this.busy.set(false); }
   }
+  touch(field: string, message: string): void { this.errors.update((current) => assignError(current, field, message)); }
+  titleOk(value: string): string { return Validators.required(value, 'Title'); }
+  bodyOk(value: string): string { return Validators.required(value, 'Body'); }
   async remove(row: NewsItem): Promise<void> {
     if (await this.dialog.confirm('Delete this news post?')) await this.vault.deleteNews(row.id);
   }

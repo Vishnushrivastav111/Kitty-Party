@@ -1,35 +1,66 @@
-
-    <div class="page-header"><h1>Reports</h1><p>Generate, preview, and download period summaries</p></div>
+    <div class="page-header"><h1>Reports</h1><p>Generate period summaries from the report API and review matching transactions</p></div>
     <div class="panel">
       <h2 style="margin-bottom:14px;color:var(--navy)">Generate report</h2>
+      <p style="color:var(--muted);margin-bottom:12px">The report API stores a name and totals every income and expense transaction between the dates. Category and transaction type are not accepted by that API, so they filter only the loaded transaction list.</p>
       <form (ngSubmit)="generate()" novalidate>
+        @if (formError()) { <p class="field-error" role="alert">{{ formError() }}</p> }
         <div class="form-grid">
-          <div class="form-group"><label>From date</label><input type="date" name="from" [(ngModel)]="fromDate" [max]="today" /><span class="field-error" [style.display]="errors()['from'] ? 'block' : 'none'">{{ errors()['from'] }}</span></div>
-          <div class="form-group"><label>To date</label><input type="date" name="to" [(ngModel)]="toDate" [max]="today" /><span class="field-error" [style.display]="errors()['to'] ? 'block' : 'none'">{{ errors()['to'] }}</span></div>
-          <div class="form-group"><label>Report type</label><select name="type" [(ngModel)]="type"><option>Summary</option><option>Transactions</option><option>Savings</option><option>Budget</option></select></div>
+          <div class="form-group"><label for="reportName">Report name</label><input id="reportName" name="reportName" [(ngModel)]="reportName" placeholder="e.g. October household review" maxlength="80" /></div>
+          <div class="form-group"><label for="reportFrom">Start date</label><input id="reportFrom" type="date" name="from" [(ngModel)]="fromDate" [max]="today" (ngModelChange)="touchDates()" /><span class="field-error" role="alert" [style.display]="errors()['from'] ? 'block' : 'none'">{{ errors()['from'] }}</span></div>
+          <div class="form-group"><label for="reportTo">End date</label><input id="reportTo" type="date" name="to" [(ngModel)]="toDate" [max]="today" (ngModelChange)="touchDates()" /><span class="field-error" role="alert" [style.display]="errors()['to'] ? 'block' : 'none'">{{ errors()['to'] }}</span></div>
+          <div class="form-group"><label for="reportType">Transaction type</label>
+            <select id="reportType" name="txType" [(ngModel)]="txType">
+              <option value="all">All types</option>
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+            </select>
+          </div>
+          <div class="form-group"><label for="reportCategory">Category</label>
+            <select id="reportCategory" name="category" [(ngModel)]="category">
+              <option value="all">All categories</option>
+              @for (item of categories; track item) { <option [value]="item">{{ item }}</option> }
+            </select>
+          </div>
         </div>
-        <div class="form-actions"><button class="btn btn-primary" [disabled]="busy()"><i class="fas fa-file-lines"></i> Generate</button></div>
+        <div class="form-actions"><button class="btn btn-primary" [disabled]="busy()">{{ busy() ? 'Generating…' : 'Generate' }}</button></div>
       </form>
       @if (preview(); as row) {
         <div class="alert-box info" style="margin-top:14px">
-          <strong>{{ row.type }} report</strong><br />
+          <strong>Server report · {{ row.type }}</strong><br />
           {{ date(row.fromDate) }} to {{ date(row.toDate) }}<br />
           Income {{ money(row.income) }} · Expense {{ money(row.expense) }} · Net {{ money(row.net) }} · {{ row.txCount }} transactions
+          <p>These figures are the values returned by the report API for the date range. They include income and expense together, including every category.</p>
+          @if (applied(); as criteria) {
+            <p>Loaded rows below use {{ criteria.from }} to {{ criteria.to }}, type {{ criteria.type }}, category {{ criteria.category }}.</p>
+          }
           <div class="form-actions" style="margin-top:10px">
             <button type="button" class="btn btn-outline btn-sm" (click)="download(row, 'txt')">Download TXT</button>
             <button type="button" class="btn btn-outline btn-sm" (click)="download(row, 'csv')">Download CSV</button>
           </div>
         </div>
+        <h3 style="margin:16px 0 8px;color:var(--navy)">Loaded transactions for the criteria above</h3>
+        @if (!matched().length) {
+          <div class="empty-state">No loaded transactions match the selected type, category, and dates.</div>
+        } @else {
+          <p>Income {{ money(matchedTotals().income) }} · Expense {{ money(matchedTotals().expense) }} · {{ matchedTotals().count }} rows. These sums use only the loaded transactions that match the filters.</p>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Name</th><th>Category</th><th>Type</th><th>Amount</th></tr></thead>
+              <tbody>
+                @for (item of matched(); track item.id) {
+                  <tr><td>{{ date(item.date) }}</td><td>{{ item.name }}</td><td>{{ item.category }}</td><td>{{ item.type }}</td><td>{{ money(item.amount) }}</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
       }
     </div>
     <div class="panel">
-      <div class="panel-header">
-        <h2>Report history</h2>
-        <button class="btn btn-danger btn-sm" type="button" (click)="clearAll()"><i class="fas fa-trash"></i> Clear all</button>
-      </div>
+      <div class="panel-header"><h2>Report history</h2></div>
       <div class="toolbar">
-        <input type="search" placeholder="Search reports..." [ngModel]="search()" (ngModelChange)="search.set($event); pageNo.set(1)" />
-        <select [ngModel]="filterType()" (ngModelChange)="filterType.set($event); pageNo.set(1)">
+        <input type="search" placeholder="Search reports" aria-label="Search reports" [ngModel]="search()" (ngModelChange)="search.set($event); pageNo.set(1)" />
+        <select [ngModel]="filterType()" (ngModelChange)="filterType.set($event); pageNo.set(1)" aria-label="Filter report type">
           <option value="">All types</option><option>Summary</option><option>Transactions</option><option>Savings</option><option>Budget</option>
         </select>
       </div>
@@ -43,9 +74,8 @@
                 <td>{{ date(row.createdAt) }}</td><td>{{ row.type }}</td><td>{{ date(row.fromDate) }} – {{ date(row.toDate) }}</td>
                 <td>{{ money(row.income) }}</td><td>{{ money(row.expense) }}</td><td>{{ money(row.net) }}</td>
                 <td>
-                  <button class="btn btn-outline btn-sm" type="button" (click)="preview.set(row)">View</button>
+                  <button class="btn btn-outline btn-sm" type="button" (click)="showSaved(row)">View</button>
                   <button class="btn btn-outline btn-sm" type="button" (click)="download(row, 'txt')">TXT</button>
-                  <button class="btn btn-danger btn-sm" type="button" (click)="remove(row)"><i class="fas fa-trash"></i></button>
                 </td>
               </tr>
             }
@@ -54,4 +84,3 @@
       </div>
       <app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" />
     </div>
-  

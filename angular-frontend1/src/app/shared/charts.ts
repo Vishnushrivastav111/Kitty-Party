@@ -13,6 +13,14 @@ export function mountChart(canvas: HTMLCanvasElement | undefined | null, config:
   return chart;
 }
 
+export function destroyChart(canvas: HTMLCanvasElement | undefined | null): void {
+  if (!canvas) return;
+  const existing = Chart.getChart(canvas);
+  if (!existing) return;
+  existing.destroy();
+  live.delete(existing);
+}
+
 export function clearCharts(): void {
   live.forEach((chart) => chart.destroy());
   live.clear();
