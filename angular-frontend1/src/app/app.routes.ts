@@ -6,6 +6,7 @@ import { LogoutComponent } from './component/Auth/logout/logout.component';
 import { RegisterComponent } from './component/Auth/register/register.component';
 import { TermsComponent } from './component/Auth/terms/terms.component';
 import { AdminAdminsComponent } from './component/Admin/admin-admins/admin-admins.component';
+import { AdminApprovalsComponent } from './component/Admin/admin-approvals.component';
 import { AdminFeedbackComponent } from './component/Admin/admin-feedback/admin-feedback.component';
 import { AdminNewsComponent } from './component/Admin/admin-news/admin-news.component';
 import { AdminOverviewComponent } from './component/Admin/admin-overview.component';
@@ -33,11 +34,7 @@ export const routes: Routes = [
   { path: 'forgot-password', component: ForgotComponent, canActivate: [guestGuard] },
   { path: 'terms', component: TermsComponent },
   { path: 'setup', component: SetupComponent, canActivate: [authGuard, memberGuard] },
-  {
-    path: '',
-    component: ShellComponent,
-    canActivate: [authGuard],
-    children: [
+  { path: '', component: ShellComponent, canActivate: [authGuard], children: [
       { path: 'dashboard', component: DashboardComponent, canActivate: [memberGuard], data: { title: 'Dashboard' } },
       { path: 'goals', component: GoalsComponent, canActivate: [memberGuard], data: { title: 'Goals' } },
       { path: 'savings', component: SavingsComponent, canActivate: [memberGuard], data: { title: 'Savings' } },
@@ -52,11 +49,11 @@ export const routes: Routes = [
       { path: 'settings', component: SettingsComponent, data: { title: 'Settings' } },
       { path: 'logout', component: LogoutComponent, data: { title: 'Logout' } },
       { path: 'admin', component: AdminOverviewComponent, canActivate: [adminGuard], data: { title: 'Dashboard' } },
+      { path: 'admin/approvals', component: AdminApprovalsComponent, canActivate: [adminGuard], data: { title: 'Approval Center' } },
       { path: 'admin/users', component: AdminUsersComponent, canActivate: [adminGuard], data: { title: 'Manage Users' } },
       { path: 'admin/feedback', component: AdminFeedbackComponent, canActivate: [adminGuard], data: { title: 'Feedback' } },
       { path: 'admin/news', component: AdminNewsComponent, canActivate: [adminGuard], data: { title: 'News' } },
       { path: 'admin/admins', component: AdminAdminsComponent, canActivate: [superGuard], data: { title: 'Manage Admins' } },
-    ],
-  },
+    ] },
   { path: '**', redirectTo: '' },
 ];
