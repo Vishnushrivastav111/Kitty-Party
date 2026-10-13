@@ -5,6 +5,20 @@ import { ApiService } from './api.service';
 import { AuthService } from '../service/auth.service';
 import { WorkspaceService } from './workspace.service';
 
+export interface ApprovalRequest {
+  id: string;
+  type: 'TRANSACTION_DELETE' | 'FINANCIAL_SETUP' | string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  requestedAt?: string;
+  reason?: string;
+  transaction?: Record<string, unknown>;
+  financialSetup?: Record<string, unknown>;
+  details?: Record<string, unknown>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly api = inject(ApiService);
@@ -16,6 +30,27 @@ export class AdminService {
   readonly members = this.workspace.members;
   readonly admins = this.workspace.admins;
   readonly insights = this.workspace.insights;
+
+  async getApprovals(): Promise<ApprovalRequest[]> {
+    const rows = await this.api.get<ApprovalRequest[]>('/admin/approvals');
+    return asArray<ApprovalRequest>(rows);
+  }
+
+  async approveRequest(id: string): Promise<void> {
+    await this.api.post(`/admin/approvals/${id}/approve`, {});
+  }
+
+  async rejectRequest(id: string, reason = ''): Promise<void> {
+    await this.api.post(`/admin/approvals/${id}/reject`, { reason });
+  }
+
+  async requestTransactionDelete(id: string): Promise<void> {
+    await this.api.post(`/transactions/${id}/delete-request`, {});
+  }
+
+  async requestFinancialSetupApproval(body: Record<string, unknown>): Promise<void> {
+    await this.api.post('/finance/setup-request', body);
+  }
 
   async updateFeedback(id: string, body: Record<string, unknown>): Promise<void> {
     await this.api.put(`/feedback/${id}`, body);
