@@ -7,8 +7,11 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
-    "test": "tsx --test src/app/shared/frontend-rules.spec.ts",
-    "watch": "ng build --watch --configuration development"
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "test:watch": "ng test --watch",
+    "test:coverage": "ng test --no-watch --code-coverage",
+    "test:rules": "tsx --test src/app/shared/frontend-rules.spec.ts"
   },
   "dependencies": {
     "@angular/common": "19.2.15",
@@ -27,6 +30,13 @@
     "@angular-devkit/build-angular": "19.2.17",
     "@angular/cli": "19.2.17",
     "@angular/compiler-cli": "19.2.15",
+    "@types/jasmine": "5.1.4",
+    "jasmine-core": "5.6.0",
+    "karma": "6.4.4",
+    "karma-chrome-launcher": "3.2.0",
+    "karma-coverage": "2.2.1",
+    "karma-jasmine": "5.1.0",
+    "karma-jasmine-html-reporter": "2.1.0",
     "tsx": "^4.23.15",
     "typescript": "5.7.3"
   }
