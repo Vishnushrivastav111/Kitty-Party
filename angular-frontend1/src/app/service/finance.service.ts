@@ -5,60 +5,17 @@ import { WorkspaceService } from './workspace.service';
 
 @Injectable({ providedIn: 'root' })
 export class FinanceService {
-  private readonly api = inject(ApiService);
-  private readonly workspace = inject(WorkspaceService);
-
-  readonly loaded = this.workspace.loaded;
-  readonly loading = this.workspace.loading;
-  readonly error = this.workspace.error;
-  readonly finance = this.workspace.finance;
-  readonly setupSkipped = this.workspace.setupSkipped;
-  readonly stats = this.workspace.stats;
-  readonly transactions = this.workspace.transactions;
-  readonly goals = this.workspace.goals;
-  readonly savings = this.workspace.savings;
-  readonly budgets = this.workspace.budgets;
-  readonly reports = this.workspace.reports;
-  readonly affordChecks = this.workspace.affordChecks;
-
-  load(): Promise<void> { return this.workspace.load(); }
-  needsSetup(): boolean { return this.workspace.needsSetup(); }
-
-  async saveFinance(body: Record<string, unknown>): Promise<FinanceProfile> {
-    const row = await this.api.put<FinanceProfile>('/finance', body);
-    await this.workspace.refresh();
-    return row;
-  }
-
-  async skipSetup(): Promise<void> {
-    await this.api.post('/finance/skip', {});
-    await this.workspace.refresh();
-  }
-
-  async addTx(body: Record<string, unknown>): Promise<void> {
-    await this.api.post('/transactions', body);
-    await this.workspace.refresh();
-  }
-
-  async updateTx(id: string, body: Record<string, unknown>): Promise<void> {
-    await this.api.put(`/transactions/${id}`, body);
-    await this.workspace.refresh();
-  }
-
-  async requestDeleteTx(id: string): Promise<void> {
-    await this.api.post(`/transactions/${id}/delete-request`, {});
-    await this.workspace.refresh();
-  }
-
-  async deleteTx(id: string): Promise<void> {
-    await this.requestDeleteTx(id);
-  }
-
-  async clearTx(): Promise<void> {
-    await this.api.delete('/transactions');
-    await this.workspace.refresh();
-  }
-
+  private readonly api = inject(ApiService); private readonly workspace = inject(WorkspaceService);
+  readonly loaded = this.workspace.loaded; readonly loading = this.workspace.loading; readonly error = this.workspace.error; readonly finance = this.workspace.finance; readonly setupSkipped = this.workspace.setupSkipped; readonly stats = this.workspace.stats; readonly transactions = this.workspace.transactions; readonly goals = this.workspace.goals; readonly savings = this.workspace.savings; readonly budgets = this.workspace.budgets; readonly reports = this.workspace.reports; readonly affordChecks = this.workspace.affordChecks;
+  load(): Promise<void> { return this.workspace.load(); } needsSetup(): boolean { return this.workspace.needsSetup(); }
+  async saveFinance(body: Record<string, unknown>): Promise<FinanceProfile> { const row = await this.api.put<FinanceProfile>('/finance', body); await this.workspace.refresh(); return row; }
+  async submitFinancialSetup(body: Record<string, unknown>): Promise<void> { await this.api.post('/finance/setup-request', body); await this.workspace.refresh(); }
+  async skipSetup(): Promise<void> { await this.api.post('/finance/skip', {}); await this.workspace.refresh(); }
+  async addTx(body: Record<string, unknown>): Promise<void> { await this.api.post('/transactions', body); await this.workspace.refresh(); }
+  async updateTx(id: string, body: Record<string, unknown>): Promise<void> { await this.api.put(`/transactions/${id}`, body); await this.workspace.refresh(); }
+  async requestDeleteTx(id: string): Promise<void> { await this.api.post(`/transactions/${id}/delete-request`, {}); await this.workspace.refresh(); }
+  async deleteTx(id: string): Promise<void> { await this.requestDeleteTx(id); }
+  async clearTx(): Promise<void> { await this.api.delete('/transactions'); await this.workspace.refresh(); }
   async addGoal(body: Record<string, unknown>): Promise<void> { await this.api.post('/goals', body); await this.workspace.refresh(); }
   async updateGoal(id: string, body: Record<string, unknown>): Promise<void> { await this.api.put(`/goals/${id}`, body); await this.workspace.refresh(); }
   async deleteGoal(id: string): Promise<void> { await this.api.delete(`/goals/${id}`); await this.workspace.refresh(); }
