@@ -41,6 +41,9 @@
         <h3>{{ form.id ? 'Edit transaction' : 'Add transaction' }}</h3>
         <form (ngSubmit)="save()" novalidate>
           @if (errors()['form']) { <p class="field-error" role="alert">{{ errors()['form'] }}</p> }
+          @if (overrunPreview() > 0) {
+            <p class="alert-box warning" role="status">Monthly budget exceeded by {{ money(overrunPreview()) }}. {{ money(overrunPreview()) }} will be considered from available savings. The savings balance is not reduced.</p>
+          }
           <div class="form-grid">
             <div class="form-group"><label for="txDate">Date</label><input id="txDate" type="date" name="date" [(ngModel)]="form.date" [max]="today" [class.input-error]="errors()['date']" (ngModelChange)="touch('date', dateOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['date'] ? 'block' : 'none'">{{ errors()['date'] }}</span></div>
             <div class="form-group"><label for="txName">Name</label><input id="txName" name="name" [(ngModel)]="form.name" placeholder="e.g. Grocery shopping" [class.input-error]="errors()['name']" (ngModelChange)="touch('name', nameOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['name'] ? 'block' : 'none'">{{ errors()['name'] }}</span></div>

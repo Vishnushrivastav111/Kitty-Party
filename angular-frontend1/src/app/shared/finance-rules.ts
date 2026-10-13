@@ -7,6 +7,8 @@ export const API_CAPABILITIES = {
   reportTypeFilter: false,
   planningRecommendations: false,
   recommendedBudget: false,
+  emergencyFund: false,
+  affordabilityReservesEmergencyFund: false,
   feedbackDelete: false,
   reportHistoryDelete: false,
 } as const;
@@ -44,6 +46,130 @@ export function roundMoney(value: number): number {
 export function categoryRemaining(limit: number, spent: number): { remaining: number; overrun: number } {
   const remaining = roundMoney(limit - spent);
   return { remaining, overrun: remaining < 0 ? roundMoney(-remaining) : 0 };
+}
+
+export interface MoneyRow {
+  id?: string;
+  type?: string;
+  amount: number;
+  date: string;
+  category?: string;
+}
+
+/** User monthly budget from the profile, otherwise the sum of saved category limits. Never substitutes a default. */
+export function resolveMonthlyBudget(profileBudget: number | null | undefined, categoryLimits: number[]): number | null {
+  const profile = Number(profileBudget);
+  if (Number.isFinite(profile) && profile > 0) return roundMoney(profile);
+  const limits = categoryLimits.reduce((sum, value) => roundMoney(sum + (Number(value) || 0)), 0);
+  return limits > 0 ? limits : null;
+}
+
+export function monthExpenseTotal(rows: MoneyRow[], month: string, excludeId?: string): number {
+  let total = 0;
+  for (const row of rows) {
+    if (excludeId && row.id === excludeId) continue;
+    if (row.type !== 'expense') continue;
+    if (String(row.date || '').slice(0, 7) !== month) continue;
+    total = roundMoney(total + (Number(row.amount) || 0));
+  }
+  return total;
+}
+
+export function monthExpenseTotalWithDraft(rows: MoneyRow[], month: string, draft: MoneyRow | null): number {
+  const base = monthExpenseTotal(rows, month, draft?.id);
+  if (!draft || draft.type !== 'expense' || String(draft.date || '').slice(0, 7) !== month) return base;
+  return roundMoney(base + (Number(draft.amount) || 0));
+}
+
+export interface BudgetPosition {
+  spending: number;
+  remaining: number;
+  overrun: number;
+}
+
+/** Remaining is never negative. The excess is reported separately as overrun. */
+export function monthlyBudgetPosition(budget: number, spending: number): BudgetPosition {
+  const gap = categoryRemaining(budget, spending);
+  return {
+    spending: roundMoney(spending),
+    remaining: Math.max(0, gap.remaining),
+    overrun: gap.overrun,
+  };
+}
+
+/** How much of a new or edited expense falls outside the monthly budget. Does not change savings. */
+export function overrunIncrease(budget: number | null, spendingBefore: number, spendingAfter: number): number {
+  if (budget == null) return 0;
+  const before = monthlyBudgetPosition(budget, spendingBefore).overrun;
+  const after = monthlyBudgetPosition(budget, spendingAfter).overrun;
+  return Math.max(0, roundMoney(after - before));
+}
+
+export function totalFromAmounts(rows: Array<{ amount: number }>): number {
+  return rows.reduce((sum, row) => roundMoney(sum + (Number(row.amount) || 0)), 0);
+}
+
+export function amountInMonth(rows: Array<{ amount: number; date: string }>, month: string): number {
+  return totalFromAmounts(rows.filter((row) => String(row.date || '').slice(0, 7) === month));
+}
+
+/**
+ * Uses an authoritative available-savings figure when the API sends one.
+ * Otherwise subtracts a known emergency fund once. Missing emergency data stays unavailable.
+ */
+export function availableSavings(
+  totalSavings: number,
+  emergencyFund: number | null,
+  authoritative?: number | null,
+): { amount: number | null; source: 'backend' | 'derived' | 'unavailable' } {
+  if (authoritative != null && Number.isFinite(Number(authoritative))) {
+    return { amount: roundMoney(Number(authoritative)), source: 'backend' };
+  }
+  if (emergencyFund == null || !Number.isFinite(Number(emergencyFund))) {
+    return { amount: null, source: 'unavailable' };
+  }
+  return { amount: Math.max(0, roundMoney(totalSavings - Number(emergencyFund))), source: 'derived' };
+}
+
+export interface FinancialPosition {
+  month: string;
+  monthlyBudget: number | null;
+  monthlySpending: number;
+  budgetRemaining: number | null;
+  budgetOverrun: number | null;
+  totalSavings: number;
+  monthlySavingsChange: number;
+  emergencyFund: null;
+  availableSavings: null;
+  savingsRequiredForOverrun: number | null;
+  goalContributionTotal: number;
+}
+
+export function buildFinancialPosition(input: {
+  profileBudget: number | null | undefined;
+  categoryLimits: number[];
+  transactions: MoneyRow[];
+  savings: Array<{ amount: number; date: string }>;
+  goals: Array<{ saved: number }>;
+  month: string;
+}): FinancialPosition {
+  const monthlyBudget = resolveMonthlyBudget(input.profileBudget, input.categoryLimits);
+  const monthlySpending = monthExpenseTotal(input.transactions, input.month);
+  const budget = monthlyBudget == null ? null : monthlyBudgetPosition(monthlyBudget, monthlySpending);
+  const totalSavings = totalFromAmounts(input.savings);
+  return {
+    month: input.month,
+    monthlyBudget,
+    monthlySpending,
+    budgetRemaining: budget ? budget.remaining : null,
+    budgetOverrun: budget ? budget.overrun : null,
+    totalSavings,
+    monthlySavingsChange: amountInMonth(input.savings, input.month),
+    emergencyFund: null,
+    availableSavings: null,
+    savingsRequiredForOverrun: budget ? budget.overrun : null,
+    goalContributionTotal: input.goals.reduce((sum, goal) => roundMoney(sum + (Number(goal.saved) || 0)), 0),
+  };
 }
 
 export function goalProgress(saved: number, target: number): { remaining: number; percent: number } {

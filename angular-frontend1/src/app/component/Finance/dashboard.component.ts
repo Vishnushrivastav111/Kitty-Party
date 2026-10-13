@@ -8,7 +8,6 @@ import { AuthService } from '../../service/auth.service';
 import { CHART_COLORS, formatDate, formatINR, num, queryRows } from '../../shared/format';
 import {
   budgetComparison,
-  categoryRemaining,
   dashboardGraphs,
   expenseBreakdown,
   goalProgress,
@@ -49,17 +48,13 @@ export class DashboardComponent {
     if (!stats) return null;
     return profileSurplus(stats.income, stats.expenses);
   });
-  readonly budgetLeft = computed(() => {
-    const stats = this.stats();
-    if (!stats) return null;
-    return categoryRemaining(stats.monthBudget, stats.spent);
-  });
+  readonly position = this.vault.position;
   readonly budgetPct = computed(() => {
-    const stats = this.stats();
-    if (!stats?.monthBudget) return 0;
-    return Math.min(100, Math.round((stats.spent / stats.monthBudget) * 100));
+    const budget = this.position().monthlyBudget;
+    if (!budget) return 0;
+    return Math.min(100, Math.round((this.position().monthlySpending / budget) * 100));
   });
-  readonly saveWidth = computed(() => Math.min(100, num(this.stats()?.totalSavings) / 2000));
+  readonly saveWidth = computed(() => Math.min(100, this.position().totalSavings / 2000));
   readonly goalWidth = computed(() => Math.min(100, num(this.stats()?.activeGoals) * 20));
   readonly page = computed(() => queryRows(this.vault.transactions(), this.search(), ['name', 'category', 'type', 'date'], { type: this.type() }, this.pageNo(), 5));
   readonly goalPreview = computed(() => this.vault.goals().slice(0, 4));

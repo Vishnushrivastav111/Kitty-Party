@@ -19,7 +19,7 @@ import { PagerComponent } from '../../../shared/pager.component';
   styleUrl: './goals.component.scss',
 })
 export class GoalsComponent {
-  private readonly vault = inject(FinanceService);
+  readonly vault = inject(FinanceService);
   private readonly dialog = inject(DialogService);
   private readonly stage = viewChild<ElementRef<HTMLCanvasElement>>('stage');
   readonly categories = GOAL_CATEGORIES;

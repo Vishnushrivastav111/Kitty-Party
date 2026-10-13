@@ -1,10 +1,12 @@
 
     <div class="page-header"><h1>Savings</h1><p>Record deposits and withdrawals toward your vault</p></div>
     <div class="cards">
-      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Vault total</h3><h2>{{ money(total()) }}</h2></div></div>
-      <div class="card"><div class="card-icon teal"><i class="fas fa-list"></i></div><div><h3>Entries</h3><h2>{{ vault.savings().length }}</h2></div></div>
+      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Total savings</h3><h2>{{ money(vault.position().totalSavings) }}</h2><p>All savings entries, not a monthly balance.</p></div></div>
+      <div class="card"><div class="card-icon teal"><i class="fas fa-list"></i></div><div><h3>Recorded this month</h3><h2>{{ money(vault.position().monthlySavingsChange) }}</h2><p>Sum of this month's entries. Not a separate savings balance.</p></div></div>
+      <div class="card"><div><h3>Needed for budget overrun</h3><h2>{{ vault.position().savingsRequiredForOverrun == null ? '—' : money(vault.position().savingsRequiredForOverrun) }}</h2><p>Display only. No savings withdrawal is created.</p></div></div>
+      <div class="card"><div><h3>Emergency fund</h3><h2>—</h2><p>Not stored by the API, so available savings after a reserve are not calculated.</p></div></div>
     </div>
-    <p style="color:var(--muted);margin-bottom:8px">Savings entries are not added to income.</p>
+    <p style="color:var(--muted);margin-bottom:8px">Savings entries are not added to income, and expense transactions do not reduce this total.</p>
     <app-graph-pager [index]="graphIndex()" [total]="2" [title]="graphIndex() === 0 ? 'Savings trend' : 'Savings by category'" (pageChange)="showGraph($event)">
       @if (!vault.savings().length) {
         <div class="empty-state">No savings entries are available for this graph.</div>

@@ -10,6 +10,8 @@
 }
 <div class="alert-box info">
   The API does not return recommended budgets, recommended goal contributions, projected timelines, or planning suggestions. Those values are not shown.
+  This month's spending is {{ money(vault.position().monthlySpending) }} against a monthly budget of {{ vault.position().monthlyBudget == null ? '—' : money(vault.position().monthlyBudget) }}.
+  Budget overrun {{ vault.position().budgetOverrun == null ? '—' : money(vault.position().budgetOverrun) }} is not withdrawn from total savings {{ money(vault.position().totalSavings) }}.
 </div>
 @if (loading()) {
   <div class="empty-state">Loading the monthly summary…</div>

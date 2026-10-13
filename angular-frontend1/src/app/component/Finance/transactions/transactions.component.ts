@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { parseApiError } from '../../../shared/api-error';
 import { DialogService } from '../../../shared/dialog.service';
 import { assignError } from '../../../shared/field-state';
+import { monthExpenseTotal, monthExpenseTotalWithDraft, overrunIncrease } from '../../../shared/finance-rules';
 import { TX_CATEGORIES, Validators, formatDate, formatINR, queryRows, todayISO } from '../../../shared/format';
 import { Tx } from '../../../model/models';
 import { FinanceService } from '../../../service/finance.service';
@@ -76,6 +77,14 @@ export class TransactionsComponent {
     await this.dialog.notice(result.message, 'Deletion not completed');
   }
 
+  overrunPreview(): number {
+    if (this.form.type !== 'expense') return 0;
+    const month = this.today.slice(0, 7);
+    const draft = { id: this.form.id, type: this.form.type, amount: Number(this.form.amount), date: this.form.date };
+    const before = monthExpenseTotal(this.vault.transactions(), month, this.form.id || undefined);
+    const after = monthExpenseTotalWithDraft(this.vault.transactions(), month, draft);
+    return overrunIncrease(this.vault.position().monthlyBudget, before, after);
+  }
   dateOk(value: string): string { return Validators.dateNotFuture(value); }
   nameOk(value: string): string { return Validators.required(value, 'Name'); }
   categoryOk(value: string): string { return Validators.required(value, 'Category'); }

@@ -1,6 +1,12 @@
 
-    <div class="page-header"><h1>My Budget</h1><p>Your saved limits compared with spending returned by the API</p></div>
-    <div class="alert-box info">Recommended budgets are not returned by the API. These figures are your budgets and the spent amounts on those records. Saving a budget does not change transactions.</div>
+    <div class="page-header"><h1>My Budget</h1><p>Your limits compared with confirmed spending</p></div>
+    <div class="alert-box info">Recommended Budget is not returned by the API, so it is not shown and it does not replace these limits. Saving a budget does not change transactions.</div>
+    <div class="cards">
+      <div class="card"><div><h3>Monthly budget</h3><h2>{{ vault.position().monthlyBudget == null ? '—' : money(vault.position().monthlyBudget) }}</h2></div></div>
+      <div class="card"><div><h3>This month's spending</h3><h2>{{ money(vault.position().monthlySpending) }}</h2><p>Expense transactions in the current month.</p></div></div>
+      <div class="card"><div><h3>Budget remaining</h3><h2>{{ vault.position().budgetRemaining == null ? '—' : money(vault.position().budgetRemaining) }}</h2></div></div>
+      <div class="card"><div><h3>Budget overrun</h3><h2>{{ vault.position().budgetOverrun == null ? '—' : money(vault.position().budgetOverrun) }}</h2><p>Considered against savings only as a display figure. Savings entries stay unchanged.</p></div></div>
+    </div>
     <div class="cards">
       <div class="card"><div class="card-icon navy"><i class="fas fa-wallet"></i></div><div><h3>Total limits</h3><h2>{{ money(totals().limit) }}</h2></div></div>
       <div class="card"><div class="card-icon orange"><i class="fas fa-receipt"></i></div><div><h3>Total spent</h3><h2>{{ money(totals().spent) }}</h2></div></div>

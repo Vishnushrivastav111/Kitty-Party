@@ -1,7 +1,8 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, computed, inject } from '@angular/core';
 import { AffordCheck, FinanceProfile, Report } from '../model/models';
 import { parseApiError } from '../shared/api-error';
-import { DeletionRequestResult, transactionDeletionRequest } from '../shared/finance-rules';
+import { buildFinancialPosition, DeletionRequestResult, transactionDeletionRequest } from '../shared/finance-rules';
+import { todayISO } from '../shared/format';
 import { ApiService } from './api.service';
 import { WorkspaceService } from './workspace.service';
 
@@ -25,6 +26,14 @@ export class FinanceService {
   readonly refreshWarning = this.workspace.refreshWarning;
   readonly affordabilityStale = this.workspace.affordabilityStale;
   readonly planStale = this.workspace.planStale;
+  readonly position = computed(() => buildFinancialPosition({
+    profileBudget: this.finance()?.monthlyBudget,
+    categoryLimits: this.budgets().map((row) => Number(row.limit) || 0),
+    transactions: this.transactions(),
+    savings: this.savings(),
+    goals: this.goals(),
+    month: todayISO().slice(0, 7),
+  }));
 
   load(): Promise<void> {
     return this.workspace.load();

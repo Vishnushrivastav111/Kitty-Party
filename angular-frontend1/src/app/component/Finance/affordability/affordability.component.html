@@ -25,7 +25,8 @@
         } @else {
         <div class="alert-box" [class.success]="row.level === 'success'" [class.warning]="row.level === 'warning'" [class.danger]="row.level === 'danger'" style="margin-top:16px">
           <strong>{{ row.verdict }}</strong><br />
-          {{ row.itemName }} · {{ money(row.amount) }} · available {{ money(row.available || row.availableAmount) }}
+          {{ row.itemName }} · {{ money(row.amount) }} · server capacity {{ money(row.available || row.availableAmount) }}
+          <p>This capacity comes from the affordability API. It is monthly surplus plus 30% of savings entries. It is not total savings ({{ money(vault.position().totalSavings) }}). The API has no emergency fund, so this page does not subtract a reserve and does not subtract one twice.</p>
           @if (row.suggestion) { <div>{{ row.suggestion }}</div> }
         </div>
         }

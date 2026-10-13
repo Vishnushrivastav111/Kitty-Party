@@ -1,3 +1,4 @@
+/// <reference types="jasmine" />
 import * as target from './forgot.component';
 
 describe('forgot.component.ts', () => {

@@ -18,16 +18,25 @@
     </div>
     <div class="cards">
       <div class="card"><div class="card-icon navy"><i class="fas fa-heart-pulse"></i></div><div><h3>Financial health</h3><h2>{{ stats() ? stats()!.health + '/100' : '—' }}</h2><div class="progress c1"><span [style.width.%]="stats()?.health || 0"></span></div></div></div>
-      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Total savings</h3><h2>{{ stats() ? money(stats()!.totalSavings) : '—' }}</h2><div class="progress c6"><span [style.width.%]="saveWidth()"></span></div></div></div>
-      <div class="card"><div class="card-icon orange"><i class="fas fa-chart-pie"></i></div><div><h3>Monthly budget</h3><h2>{{ stats() ? money(stats()!.monthBudget) : '—' }}</h2><p [class.negative]="!!stats() && stats()!.spent > stats()!.monthBudget" [class.positive]="!!stats() && stats()!.spent <= stats()!.monthBudget">Spent {{ stats() ? money(stats()!.spent) : '—' }}</p><div class="progress c3"><span [style.width.%]="budgetPct()"></span></div></div></div>
+      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Total savings</h3><h2>{{ money(position().totalSavings) }}</h2><div class="progress c6"><span [style.width.%]="saveWidth()"></span></div></div></div>
+      <div class="card"><div class="card-icon orange"><i class="fas fa-chart-pie"></i></div><div><h3>Monthly budget</h3><h2>{{ position().monthlyBudget == null ? '—' : money(position().monthlyBudget) }}</h2><p>This month's spending {{ money(position().monthlySpending) }}</p><div class="progress c3"><span [style.width.%]="budgetPct()"></span></div></div></div>
       <div class="card"><div class="card-icon teal"><i class="fas fa-bullseye"></i></div><div><h3>Active goals</h3><h2>{{ stats() ? stats()!.activeGoals : '—' }}</h2><div class="progress c2"><span [style.width.%]="goalWidth()"></span></div></div></div>
     </div>
     <div class="cards">
       <div class="card"><div class="card-icon green"><i class="fas fa-arrow-down"></i></div><div><h3>Monthly income</h3><h2>{{ stats() ? money(stats()!.income) : '—' }}</h2></div></div>
       <div class="card"><div class="card-icon orange"><i class="fas fa-arrow-up"></i></div><div><h3>Monthly expenses</h3><h2>{{ stats() ? money(stats()!.expenses) : '—' }}</h2><p>Transaction spending {{ stats() ? money(stats()!.spent) : '—' }}</p></div></div>
       <div class="card"><div class="card-icon teal"><i class="fas fa-scale-balanced"></i></div><div><h3>Surplus</h3><h2>{{ surplus() === null ? '—' : money(surplus()) }}</h2><p>Server rule: income minus expenses. EMI is not subtracted again.</p></div></div>
-      <div class="card"><div class="card-icon navy"><i class="fas fa-wallet"></i></div><div><h3>Budget remaining</h3><h2>{{ budgetLeft() === null ? '—' : money(budgetLeft()!.remaining) }}</h2>@if (budgetLeft()?.overrun) { <p class="negative">Over by {{ money(budgetLeft()!.overrun) }}</p> }</div></div>
+      <div class="card"><div class="card-icon navy"><i class="fas fa-wallet"></i></div><div><h3>Budget remaining</h3><h2>{{ position().budgetRemaining == null ? '—' : money(position().budgetRemaining) }}</h2><p>Budget overrun {{ position().budgetOverrun == null ? '—' : money(position().budgetOverrun) }}</p></div></div>
     </div>
+    <div class="cards">
+      <div class="card"><div class="card-icon green"><i class="fas fa-bullseye"></i></div><div><h3>Goal contributions</h3><h2>{{ money(position().goalContributionTotal) }}</h2><p>Each goal's own saved amount. Not total savings.</p></div></div>
+      <div class="card"><div><h3>Emergency fund</h3><h2>—</h2><p>The API does not store an emergency fund.</p></div></div>
+      <div class="card"><div><h3>Available savings</h3><h2>—</h2><p>Not calculated. Reserving an emergency fund would require a value the API does not return.</p></div></div>
+      <div class="card"><div><h3>Latest affordability</h3><h2>{{ vault.affordabilityStale() ? 'Out of date' : (vault.affordChecks()[0] ? vault.affordChecks()[0].verdict : '—') }}</h2><p>The server capacity is not total savings.</p></div></div>
+    </div>
+    @if (position().budgetOverrun) {
+      <div class="alert-box warning">Monthly budget exceeded by {{ money(position().budgetOverrun) }}. {{ money(position().budgetOverrun) }} will be considered from available savings. The savings balance is not reduced.</div>
+    }
     @if (vault.finance()) {
       <div class="alert-box info">Financial profile is the record saved by the server. The API does not include an approval step for setup.</div>
     } @else {
@@ -85,7 +94,7 @@
       } @else {
         @for (goal of goalPreview(); track goal.id; let i = $index) {
           <div style="margin-bottom:14px">
-            <strong>{{ goal.title }}</strong> — {{ money(goal.saved) }} / {{ money(goal.target) }} ({{ pct(goal) }}%)
+            <strong>{{ goal.title }}</strong> — saved {{ money(goal.saved) }} / {{ money(goal.target) }} ({{ pct(goal) }}%). This uses the goal's own saved amount, not total savings.
             <div class="progress" [ngClass]="'c' + ((i % 6) + 1)"><span [style.width.%]="pct(goal)"></span></div>
           </div>
         }

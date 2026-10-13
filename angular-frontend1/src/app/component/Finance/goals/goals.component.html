@@ -1,5 +1,6 @@
 
-    <div class="page-header"><h1>Goals</h1><p>Plan targets, track progress, and update saved amounts</p></div>
+    <div class="page-header"><h1>Goals</h1><p>Progress uses each goal's saved amount, not total savings</p></div>
+    <div class="alert-box info">Total savings are {{ money(vault.position().totalSavings) }}. Goal contributions on this page add up to {{ money(vault.position().goalContributionTotal) }}. The same savings amount is not assigned to every goal. Recommended contributions are not returned by the API.</div>
     <app-graph-pager [index]="graphIndex()" [total]="graphPages().length" [title]="activeGraph().title" (pageChange)="showGraph($event)">
       @if (!activeGraph().hasData) {
         <div class="empty-state">{{ activeGraph().empty }}</div>
@@ -25,13 +26,13 @@
       </div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Title</th><th>Category</th><th>Target</th><th>Saved</th><th>Progress</th><th>Deadline</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Title</th><th>Category</th><th>Target</th><th>Saved</th><th>Remaining</th><th>Progress</th><th>Deadline</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
-            @if (!page().rows.length) { <tr><td colspan="8" class="empty-state">No goals yet</td></tr> }
+            @if (!page().rows.length) { <tr><td colspan="9" class="empty-state">No goals yet</td></tr> }
             @for (row of page().rows; track row.id) {
               <tr>
                 <td>{{ row.title }}</td><td>{{ row.category }}</td><td>{{ money(row.target) }}</td><td>{{ money(row.saved) }}</td>
-                <td>{{ pct(row) }}%</td><td>{{ date(row.deadline) }}</td>
+                <td>{{ money(remaining(row)) }}</td><td>{{ pct(row) }}%</td><td>{{ date(row.deadline) }}</td>
                 <td><span class="badge" [class.badge-success]="row.status === 'completed'" [class.badge-warning]="row.status === 'paused'" [class.badge-info]="row.status === 'active'">{{ row.status }}</span></td>
                 <td>
                   <button class="btn btn-outline btn-sm" type="button" (click)="open(row)"><i class="fas fa-pen"></i></button>

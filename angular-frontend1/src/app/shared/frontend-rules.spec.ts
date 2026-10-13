@@ -10,9 +10,15 @@ import {
   categoryRemaining,
   dashboardGraphs,
   expenseBreakdown,
+  availableSavings,
+  buildFinancialPosition,
   goalProgress,
   incomeExpenseSeries,
   joinFullName,
+  monthExpenseTotal,
+  monthExpenseTotalWithDraft,
+  monthlyBudgetPosition,
+  overrunIncrease,
   personName,
   profileSurplus,
   reportDateErrors,
@@ -201,6 +207,92 @@ describe('financial sync and approvals', () => {
     assert.equal(progress.percent, 25);
     assert.equal(goalProgress(0, 0).percent, 0);
     assert.equal(goalProgress(50, 40).percent, 100);
+  });
+
+  it('keeps a transaction inside the monthly budget', () => {
+    const before = monthExpenseTotal([
+      { id: '1', type: 'expense', amount: 20000, date: '2026-10-02' },
+    ], '2026-10');
+    const after = monthExpenseTotalWithDraft([
+      { id: '1', type: 'expense', amount: 20000, date: '2026-10-02' },
+    ], '2026-10', { type: 'expense', amount: 5000, date: '2026-10-13' });
+    const position = monthlyBudgetPosition(30000, after);
+    assert.equal(before, 20000);
+    assert.equal(after, 25000);
+    assert.equal(position.remaining, 5000);
+    assert.equal(position.overrun, 0);
+    assert.equal(overrunIncrease(30000, before, after), 0);
+  });
+
+  it('reports the budget overrun without changing savings', () => {
+    const rows = [{ id: '1', type: 'expense', amount: 27000, date: '2026-10-02' }];
+    const before = monthExpenseTotal(rows, '2026-10');
+    const after = monthExpenseTotalWithDraft(rows, '2026-10', { type: 'expense', amount: 8000, date: '2026-10-13' });
+    const position = monthlyBudgetPosition(30000, after);
+    assert.equal(after, 35000);
+    assert.equal(position.remaining, 0);
+    assert.equal(position.overrun, 5000);
+    assert.equal(overrunIncrease(30000, before, after), 5000);
+    const savings = availableSavings(50000, 20000);
+    assert.equal(savings.amount, 30000);
+    assert.equal(savings.source, 'derived');
+  });
+
+  it('edits an expense once and leaves a pending deletion unchanged', () => {
+    const rows = [
+      { id: 'old', type: 'expense', amount: 5000, date: '2026-10-02' },
+      { id: 'keep', type: 'expense', amount: 20000, date: '2026-10-03' },
+    ];
+    const edited = monthExpenseTotalWithDraft(rows, '2026-10', { id: 'old', type: 'expense', amount: 8000, date: '2026-10-04' });
+    assert.equal(edited, 28000);
+    const changedType = monthExpenseTotalWithDraft(rows, '2026-10', { id: 'old', type: 'income', amount: 5000, date: '2026-10-02' });
+    assert.equal(changedType, 20000);
+    assert.equal(monthExpenseTotal(rows, '2026-10'), 25000);
+    assert.equal(monthExpenseTotal(rows.filter((row) => row.id !== 'old'), '2026-10'), 20000);
+  });
+
+  it('does not treat total savings as goal progress or spendable cash', () => {
+    const progress = goalProgress(20000, 50000);
+    assert.equal(progress.percent, 40);
+    assert.equal(progress.remaining, 30000);
+    assert.notEqual(goalProgress(100000, 50000).percent, progress.percent);
+    const goals = [
+      { saved: 20000, target: 100000 },
+      { saved: 10000, target: 50000 },
+    ];
+    assert.equal(goalProgress(goals[0].saved, goals[0].target).percent, 20);
+    assert.equal(goalProgress(goals[1].saved, goals[1].target).percent, 20);
+    const reserved = availableSavings(200000, 50000);
+    assert.equal(reserved.amount, 150000);
+    const authoritative = availableSavings(200000, 50000, 150000);
+    assert.equal(authoritative.amount, 150000);
+    assert.equal(authoritative.source, 'backend');
+    assert.equal(availableSavings(200000, null).amount, null);
+  });
+
+  it('builds one shared position and does not invent an emergency fund', () => {
+    const position = buildFinancialPosition({
+      profileBudget: 30000,
+      categoryLimits: [],
+      transactions: [
+        { type: 'expense', amount: 27000, date: '2026-10-01' },
+        { type: 'income', amount: 9000, date: '2026-10-01' },
+        { type: 'expense', amount: 4000, date: '2026-09-01' },
+      ],
+      savings: [{ amount: 50000, date: '2026-09-01' }, { amount: 1000, date: '2026-10-02' }],
+      goals: [{ saved: 20000 }, { saved: 10000 }],
+      month: '2026-10',
+    });
+    assert.equal(position.monthlySpending, 27000);
+    assert.equal(position.budgetRemaining, 3000);
+    assert.equal(position.totalSavings, 51000);
+    assert.equal(position.monthlySavingsChange, 1000);
+    assert.equal(position.goalContributionTotal, 30000);
+    assert.equal(position.emergencyFund, null);
+    assert.equal(position.availableSavings, null);
+    assert.equal(API_CAPABILITIES.emergencyFund, false);
+    assert.equal(API_CAPABILITIES.affordabilityReservesEmergencyFund, false);
+    assert.equal(API_CAPABILITIES.recommendedBudget, false);
   });
 
   it('does not offer feedback or report deletion in the templates', () => {
