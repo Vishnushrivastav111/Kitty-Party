@@ -1,32 +1,45 @@
 <div class="page-header">
   <h1>Approval center</h1>
-  <p>Review requests the API actually exposes</p>
-</div>
-<div class="alert-box warning">
-  The current API has no approval inbox. Transaction deletion and financial setup are saved or deleted immediately by their own endpoints, and those immediate actions are not used here as a substitute for approval.
+  <p>Review user approval requests</p>
 </div>
 <div class="panel">
   <div class="panel-header"><h2>Requests</h2></div>
   <div class="toolbar">
     <input type="search" placeholder="Search requests" aria-label="Search approval requests" [ngModel]="search()" (ngModelChange)="search.set($event); pageNo.set(1)" />
     <select [ngModel]="status()" (ngModelChange)="status.set($event); pageNo.set(1)" aria-label="Approval status">
-      <option value="pending">Pending</option>
-      <option value="approved">Approved</option>
-      <option value="rejected">Rejected</option>
-      <option value="all">All statuses</option>
+      <option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="all">All statuses</option>
     </select>
     <select [ngModel]="type()" (ngModelChange)="type.set($event); pageNo.set(1)" aria-label="Request type">
-      <option value="">All request types</option>
-      <option value="transaction-deletion">Transaction deletion</option>
-      <option value="financial-setup">Financial setup</option>
+      <option value="">All request types</option><option value="transaction-delete">Transaction deletion</option>
     </select>
   </div>
-  @if (loading()) {
-    <div class="empty-state">Loading approval requests…</div>
-  } @else if (error()) {
-    <div class="alert-box danger" role="alert">{{ error() }}</div>
-  } @else if (!page().rows.length) {
-    <div class="empty-state">No approval records are available. Transaction deletion approval is unsupported. Financial setup approval is unsupported.</div>
+  @if (loading()) { <div class="empty-state">Loading approval requests…</div> }
+  @else if (error()) { <div class="alert-box danger" role="alert">{{ error() }}</div> }
+  @else if (!page().rows.length) { <div class="empty-state">No approval requests found.</div> }
+  @else {
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Requester</th><th>Type</th><th>Resource</th><th>Reason</th><th>Status</th><th>Requested</th><th>Action</th></tr></thead>
+        <tbody>
+          @for (row of page().rows; track row.id) {
+            <tr>
+              <td>{{ row.requesterName || row.requesterEmail || row.requesterId }}</td>
+              <td>{{ row.requestType }}</td>
+              <td>{{ row.resourceId }}</td>
+              <td>{{ row.reason || '—' }}</td>
+              <td>{{ row.status }}</td>
+              <td>{{ row.createdAt || '—' }}</td>
+              <td>
+                @if (row.status === 'pending') {
+                  <button type="button" (click)="approve(row)">Approve</button>
+                  <button type="button" (click)="reject(row)">Reject</button>
+                } @else { <span>Reviewed</span> }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
   <app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" />
 </div>
