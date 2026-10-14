@@ -14,6 +14,9 @@ export interface FinanceProfile {
   userId?: string;
   incomeSource?: string;
   monthlyIncome?: number;
+  additionalIncome?: number;
+  otherCommitments?: number;
+  emergencyReserve?: number;
   payCycle?: string;
   monthlyExpenses?: number;
   expenseCategories?: unknown;
@@ -61,6 +64,12 @@ export interface Goal {
   saved: number;
   deadline?: string;
   status: string;
+  description?: string;
+  priority?: string;
+  plannedContribution?: number;
+  requiredMonthly?: number;
+  feasible?: boolean;
+  feasibilityMessage?: string;
   progressPercent?: number;
   remaining?: number;
 }
@@ -72,6 +81,7 @@ export interface Saving {
   amount: number;
   date: string;
   note?: string;
+  goalId?: string;
 }
 
 export interface Budget {
@@ -110,6 +120,12 @@ export interface AffordCheck {
   date?: string;
   suggestion?: string;
   plan?: string[];
+  shortfall?: number;
+  monthsToSave?: number;
+  paymentMethod?: string;
+  monthlyInstallment?: number;
+  totalRepayment?: number;
+  canCreateGoal?: boolean;
 }
 
 export interface Notice {

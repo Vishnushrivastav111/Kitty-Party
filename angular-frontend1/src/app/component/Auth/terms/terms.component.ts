@@ -1,10 +1,11 @@
 import { Component, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { SiteFooterComponent } from '../../../shared/site-footer.component';
 
 @Component({
   selector: 'app-terms',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, SiteFooterComponent],
   templateUrl: './terms.component.html',
   styleUrl: './terms.component.scss',
 })

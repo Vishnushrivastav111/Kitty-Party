@@ -5,6 +5,7 @@ import com.microvault.finance.dto.SavingsResponse;
 import com.microvault.finance.entity.SavingsEntry;
 import com.microvault.finance.exception.ResourceNotFoundException;
 import com.microvault.finance.exception.ValidationException;
+import com.microvault.finance.repository.GoalRepository;
 import com.microvault.finance.repository.SavingsRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,9 @@ class SavingsServiceImplTest {
 
     @Mock
     private SavingsRepository savingsRepository;
+
+    @Mock
+    private GoalRepository goalRepository;
 
     @InjectMocks
     private SavingsServiceImpl savingsService;

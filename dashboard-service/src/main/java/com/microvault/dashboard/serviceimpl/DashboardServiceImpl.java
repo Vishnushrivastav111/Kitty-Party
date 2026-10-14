@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.YearMonth;
 import java.util.UUID;
 
 @Service
@@ -77,51 +78,43 @@ public class DashboardServiceImpl implements DashboardService {
             }
         }
 
-        BigDecimal spent = BigDecimal.ZERO;
-        if (transactions != null && transactions.isArray()) {
-            for (JsonNode row : transactions) {
-                if ("expense".equalsIgnoreCase(row.path("type").asText(""))) {
-                    spent = spent.add(decimal(row, "amount"));
-                }
-            }
+        BigDecimal spent = monthExpenses(transactions);
+        BigDecimal income = decimal(finance, "monthlyIncome").add(decimal(finance, "additionalIncome"));
+        BigDecimal essential = decimal(finance, "monthlyExpenses");
+        BigDecimal emi = decimal(finance, "monthlyEmi");
+        BigDecimal other = decimal(finance, "otherCommitments");
+
+        BigDecimal expenses = essential;
+        if (expenses.compareTo(BigDecimal.ZERO) == 0) {
+            expenses = spent;
         }
 
-        BigDecimal income = finance == null ? BigDecimal.ZERO : decimal(finance, "monthlyIncome");
-        BigDecimal profileExpenses = finance == null ? null : decimal(finance, "monthlyExpenses");
-        BigDecimal expenses = profileExpenses == null || profileExpenses.compareTo(BigDecimal.ZERO) == 0
-                ? spent : profileExpenses;
-
-        BigDecimal monthBudget = finance == null ? BigDecimal.ZERO : decimal(finance, "monthlyBudget");
+        BigDecimal monthBudget = BigDecimal.ZERO;
+        if (finance != null) {
+            monthBudget = decimal(finance, "monthlyBudget");
+        }
         if (monthBudget.compareTo(BigDecimal.ZERO) == 0 && budgets != null && budgets.isArray()) {
             for (JsonNode row : budgets) {
                 monthBudget = monthBudget.add(decimal(row, "limit"));
             }
         }
-        if (monthBudget.compareTo(BigDecimal.ZERO) == 0) {
-            monthBudget = new BigDecimal("30000");
-        }
 
-        int health = 50;
+        int health = 0;
         if (income.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal left = income.subtract(expenses);
+            BigDecimal left = income.subtract(expenses).subtract(emi).subtract(other);
             if (left.compareTo(BigDecimal.ZERO) < 0) {
                 left = BigDecimal.ZERO;
             }
-            BigDecimal saveRate = left.divide(income, 4, RoundingMode.HALF_UP);
-            double score = 40 + saveRate.doubleValue() * 60;
-            if (totalSavings.compareTo(BigDecimal.ZERO) > 0) {
-                score = score + 10;
+            health = left.multiply(new BigDecimal("100")).divide(income, 0, RoundingMode.HALF_UP).intValue();
+            if (health > 100) {
+                health = 100;
             }
-            if (score > 100) {
-                score = 100;
-            }
-            health = (int) Math.round(score);
         }
 
         int activeGoals = 0;
         if (goals != null && goals.isArray()) {
             for (JsonNode goal : goals) {
-                if (!"completed".equalsIgnoreCase(goal.path("status").asText(""))) {
+                if ("active".equalsIgnoreCase(goal.path("status").asText(""))) {
                     activeGoals = activeGoals + 1;
                 }
             }
@@ -137,6 +130,32 @@ public class DashboardServiceImpl implements DashboardService {
         stats.setIncome(income);
         stats.setExpenses(expenses);
         return stats;
+    }
+
+    private BigDecimal monthExpenses(JsonNode transactions) {
+        if (transactions == null || !transactions.isArray()) {
+            return BigDecimal.ZERO;
+        }
+        String month = YearMonth.now().toString();
+        BigDecimal spent = BigDecimal.ZERO;
+        for (JsonNode row : transactions) {
+            String type = row.path("type").asText("");
+            String category = row.path("category").asText("");
+            if ("transfer".equalsIgnoreCase(category) || "savings".equalsIgnoreCase(category)
+                    || "investment".equalsIgnoreCase(category) || "transfer".equalsIgnoreCase(type)) {
+                continue;
+            }
+            String date = row.path("date").asText("");
+            if (!date.startsWith(month)) {
+                continue;
+            }
+            if ("expense".equalsIgnoreCase(type)) {
+                spent = spent.add(decimal(row, "amount"));
+            } else if ("refund".equalsIgnoreCase(type)) {
+                spent = spent.subtract(decimal(row, "amount"));
+            }
+        }
+        return spent.signum() < 0 ? BigDecimal.ZERO : spent;
     }
 
     private BigDecimal decimal(JsonNode node, String field) {

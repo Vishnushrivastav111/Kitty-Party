@@ -25,6 +25,9 @@ public class SavingsEntry {
 
     private String category;
 
+    @Column(name = "goal_id")
+    private UUID goalId;
+
     @Column(nullable = false)
     private BigDecimal amount;
 
@@ -53,6 +56,8 @@ public class SavingsEntry {
     public void setTitle(String title) { this.title = title; }
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
+    public UUID getGoalId() { return goalId; }
+    public void setGoalId(UUID goalId) { this.goalId = goalId; }
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
     public LocalDate getDate() { return date; }

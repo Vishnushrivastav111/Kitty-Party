@@ -180,9 +180,14 @@ export function goalProgress(saved: number, target: number): { remaining: number
   return { remaining: roundMoney(safeTarget - safeSaved), percent: Math.round(percent * 100) / 100 };
 }
 
-/** Matches the finance service summary: surplus is income minus expenses, floored at zero. EMI is stored separately and is not subtracted. */
+/** Income minus essential expenses. EMI and other commitments are applied in planningCapacity. */
 export function profileSurplus(income: number, expenses: number): number {
   return Math.max(0, roundMoney(income - expenses));
+}
+
+/** Recurring income minus essential expenses, EMI, and other required commitments. */
+export function planningCapacity(income: number, essential: number, emi: number, other: number): number {
+  return roundMoney(income - essential - emi - other);
 }
 
 export function joinFullName(firstName: string, middleName: string, lastName: string): string {

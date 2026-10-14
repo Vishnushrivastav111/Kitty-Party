@@ -8,7 +8,9 @@ import com.microvault.finance.entity.SavingsEntry;
 import com.microvault.finance.exception.ResourceNotFoundException;
 import com.microvault.finance.exception.ValidationException;
 import com.microvault.finance.repository.AffordabilityRepository;
+import com.microvault.finance.repository.BudgetRepository;
 import com.microvault.finance.repository.FinanceProfileRepository;
+import com.microvault.finance.repository.GoalRepository;
 import com.microvault.finance.repository.SavingsRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +50,12 @@ class AffordabilityServiceImplTest {
     @Mock
     private SavingsRepository savingsRepository;
 
+    @Mock
+    private BudgetRepository budgetRepository;
+
+    @Mock
+    private GoalRepository goalRepository;
+
     @InjectMocks
     private AffordabilityServiceImpl affordabilityService;
 
@@ -81,7 +89,7 @@ class AffordabilityServiceImplTest {
         AffordabilityResponse response = affordabilityService.check(userId, request("Shoes", "1000", LocalDate.now()));
 
         assertEquals(LocalDate.now(), response.getDate());
-        assertEquals("Comfortably affordable", response.getVerdict());
+        assertEquals("Affordable with planning", response.getVerdict());
     }
 
     @Test
@@ -105,9 +113,9 @@ class AffordabilityServiceImplTest {
         AffordabilityResponse response = affordabilityService.check(userId, request("Phone", "500", LocalDate.now()));
 
         assertEquals(new BigDecimal("0.00"), response.getAvailable());
-        assertEquals("Tight — consider delaying", response.getVerdict());
-        assertEquals("warning", response.getLevel());
-        assertTrue(response.getPlan().get(0).contains("income 0 minus expenses 0"));
+        assertEquals("Not currently affordable", response.getVerdict());
+        assertEquals("danger", response.getLevel());
+        assertTrue(response.getPlan().get(0).contains("income 0.00"));
     }
 
     @Test
@@ -117,9 +125,9 @@ class AffordabilityServiceImplTest {
 
         AffordabilityResponse response = affordabilityService.check(userId, request("Phone", "1000", LocalDate.now()));
 
-        assertEquals(new BigDecimal("3000.00"), response.getAvailable());
-        assertEquals(new BigDecimal("3000.00"), response.getAvailableAmount());
-        assertEquals("Affordable with caution", response.getVerdict());
+        assertEquals(new BigDecimal("10000.00"), response.getAvailable());
+        assertEquals(new BigDecimal("10000.00"), response.getAvailableAmount());
+        assertEquals("Not currently affordable", response.getVerdict());
     }
 
     @Test
@@ -129,10 +137,10 @@ class AffordabilityServiceImplTest {
 
         AffordabilityResponse response = affordabilityService.check(userId, request("Headphones", "3000", LocalDate.now()));
 
-        assertEquals(new BigDecimal("33000.00"), response.getAvailable());
-        assertEquals("Comfortably affordable", response.getVerdict());
+        assertEquals(new BigDecimal("10000.00"), response.getAvailable());
+        assertEquals("Affordable now", response.getVerdict());
         assertEquals("success", response.getLevel());
-        assertEquals(4, response.getPlan().size());
+        assertTrue(response.getPlan().size() >= 4);
     }
 
     @Test
@@ -144,7 +152,7 @@ class AffordabilityServiceImplTest {
         AffordabilityResponse response = affordabilityService.check(userId, request("Desk", "100", LocalDate.now()));
 
         assertEquals(new BigDecimal("0.00"), response.getAvailable());
-        assertTrue(response.getPlan().get(0).contains("income 0 minus expenses 1000"));
+        assertTrue(response.getPlan().get(0).contains("income 0.00"));
     }
 
     @Test
@@ -155,8 +163,8 @@ class AffordabilityServiceImplTest {
 
         AffordabilityResponse response = affordabilityService.check(userId, request("Desk", "400", LocalDate.now()));
 
-        assertEquals(new BigDecimal("4000.00"), response.getAvailable());
-        assertTrue(response.getPlan().get(0).contains("income 4000 minus expenses 0"));
+        assertEquals(new BigDecimal("0.00"), response.getAvailable());
+        assertEquals("Affordable with planning", response.getVerdict());
     }
 
     @Test
@@ -167,7 +175,7 @@ class AffordabilityServiceImplTest {
         AffordabilityResponse response = affordabilityService.check(userId, request("Desk", "100", LocalDate.now()));
 
         assertEquals(new BigDecimal("0.00"), response.getAvailable());
-        assertEquals("Tight — consider delaying", response.getVerdict());
+        assertEquals("Not currently affordable", response.getVerdict());
     }
 
     @Test
@@ -177,8 +185,8 @@ class AffordabilityServiceImplTest {
 
         AffordabilityResponse response = affordabilityService.check(userId, request("TV", "150", LocalDate.now()));
 
-        assertEquals(new BigDecimal("300.00"), response.getAvailable());
-        assertEquals("Affordable with caution", response.getVerdict());
+        assertEquals(new BigDecimal("1000.00"), response.getAvailable());
+        assertEquals("Not currently affordable", response.getVerdict());
     }
 
     @Test
@@ -189,8 +197,8 @@ class AffordabilityServiceImplTest {
         AffordabilityResponse response = affordabilityService.check(userId, request("TV", "150", LocalDate.now()));
 
         assertEquals(new BigDecimal("0.00"), response.getAvailable());
-        assertEquals("Tight — consider delaying", response.getVerdict());
-        assertEquals("warning", response.getLevel());
+        assertEquals("Not currently affordable", response.getVerdict());
+        assertEquals("danger", response.getLevel());
     }
 
     @Test
@@ -201,10 +209,8 @@ class AffordabilityServiceImplTest {
         AffordabilityResponse response = affordabilityService.check(userId, request("TV", "150", LocalDate.now()));
 
         assertEquals(new BigDecimal("0.00"), response.getAvailable());
-        assertEquals("Tight — consider delaying", response.getVerdict());
+        assertEquals("Not currently affordable", response.getVerdict());
     }
-
-    // ---------------------------------------------------------------- check: savings handling
 
     @Test
     void checkWithEmptySavingsListAddsNothing() {
@@ -213,7 +219,8 @@ class AffordabilityServiceImplTest {
 
         AffordabilityResponse response = affordabilityService.check(userId, request("Book", "100", LocalDate.now()));
 
-        assertEquals(new BigDecimal("1000.00"), response.getAvailable());
+        assertEquals(new BigDecimal("0.00"), response.getAvailable());
+        assertEquals("Affordable with planning", response.getVerdict());
     }
 
     @Test
@@ -223,8 +230,8 @@ class AffordabilityServiceImplTest {
 
         AffordabilityResponse response = affordabilityService.check(userId, request("Book", "100", LocalDate.now()));
 
-        assertEquals(new BigDecimal("2800.00"), response.getAvailable());
-        assertTrue(response.getPlan().get(1).contains("(6000)"));
+        assertEquals(new BigDecimal("6000.00"), response.getAvailable());
+        assertEquals("Affordable now", response.getVerdict());
     }
 
     @Test
@@ -235,81 +242,46 @@ class AffordabilityServiceImplTest {
 
         AffordabilityResponse response = affordabilityService.check(userId, request("Book", "100", LocalDate.now()));
 
-        assertEquals(new BigDecimal("1300.00"), response.getAvailable());
+        assertEquals(new BigDecimal("1000.00"), response.getAvailable());
+        assertEquals("Affordable now", response.getVerdict());
     }
 
-    // ---------------------------------------------------------------- check: ratio verdicts
-
     @Test
-    void ratioExactlyThirtyPercentIsComfortable() {
-        AffordabilityResponse response = checkAgainstAvailable("10000", "3000");
+    void cashThatFitsUnallocatedSavingsIsAffordableNow() {
+        FinanceProfile profile = profile(new BigDecimal("10000"), BigDecimal.ZERO);
+        profile.setCurrentSavings(new BigDecimal("8000"));
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+        stubSavings();
 
-        assertEquals("Comfortably affordable", response.getVerdict());
+        AffordabilityResponse response = affordabilityService.check(userId, request("Item", "3000", LocalDate.now()));
+
+        assertEquals("Affordable now", response.getVerdict());
         assertEquals("success", response.getLevel());
-        assertTrue(response.getSuggestion().startsWith("Buy now."));
+        assertEquals(new BigDecimal("8000.00"), response.getAvailable());
     }
 
     @Test
-    void ratioBelowThirtyPercentIsComfortable() {
-        AffordabilityResponse response = checkAgainstAvailable("10000", "100");
+    void shortfallWithMonthlyRoomIsAffordableWithPlanning() {
+        stubProfile("10000", "0");
+        stubSavings();
 
-        assertEquals("Comfortably affordable", response.getVerdict());
-        assertEquals("success", response.getLevel());
-    }
+        AffordabilityResponse response = affordabilityService.check(userId, request("Item", "3000", LocalDate.now()));
 
-    @Test
-    void ratioJustAboveThirtyPercentIsAffordableWithCaution() {
-        AffordabilityResponse response = checkAgainstAvailable("10000", "3001");
-
-        assertEquals("Affordable with caution", response.getVerdict());
+        assertEquals("Affordable with planning", response.getVerdict());
         assertEquals("warning", response.getLevel());
-        assertTrue(response.getSuggestion().startsWith("You can buy this"));
+        assertTrue(response.isCanCreateGoal());
+        assertTrue(response.getSuggestion().contains("3000.00"));
     }
 
     @Test
-    void ratioExactlySixtyPercentIsAffordableWithCaution() {
-        AffordabilityResponse response = checkAgainstAvailable("10000", "6000");
-
-        assertEquals("Affordable with caution", response.getVerdict());
-        assertEquals("warning", response.getLevel());
-    }
-
-    @Test
-    void ratioJustAboveSixtyPercentIsTight() {
-        AffordabilityResponse response = checkAgainstAvailable("10000", "6001");
-
-        assertEquals("Tight — consider delaying", response.getVerdict());
-        assertEquals("warning", response.getLevel());
-        assertTrue(response.getSuggestion().startsWith("Delay this purchase."));
-    }
-
-    @Test
-    void ratioExactlyOneHundredPercentIsTight() {
-        AffordabilityResponse response = checkAgainstAvailable("10000", "10000");
-
-        assertEquals("Tight — consider delaying", response.getVerdict());
-        assertEquals("warning", response.getLevel());
-    }
-
-    @Test
-    void ratioAboveOneHundredPercentIsNotRecommendedWithShortfall() {
-        AffordabilityResponse response = checkAgainstAvailable("10000", "10001");
-
-        assertEquals("Not recommended", response.getVerdict());
-        assertEquals("danger", response.getLevel());
-        assertEquals("Do not buy this now. You are short by 1.00. Save that amount before you purchase.",
-                response.getSuggestion());
-    }
-
-    @Test
-    void notRecommendedWhenThereIsNoCapacityAtAll() {
-        // zero capacity pins the ratio to 100%, so it is "tight" rather than "not recommended"
+    void noMonthlyRoomIsNotCurrentlyAffordable() {
         stubProfile("0", "0");
         stubSavings();
 
         AffordabilityResponse response = affordabilityService.check(userId, request("Car", "900000", LocalDate.now()));
 
-        assertEquals("Tight — consider delaying", response.getVerdict());
+        assertEquals("Not currently affordable", response.getVerdict());
+        assertEquals("danger", response.getLevel());
     }
 
     // ---------------------------------------------------------------- check: persistence
@@ -330,9 +302,9 @@ class AffordabilityServiceImplTest {
         assertEquals(userId, saved.getUserId());
         assertEquals("Headphones", saved.getItemName());
         assertEquals(new BigDecimal("1000"), saved.getAmount());
-        assertEquals(new BigDecimal("10000.00"), saved.getAvailableAmount());
-        assertEquals("Comfortably affordable", saved.getVerdict());
-        assertEquals("success", saved.getLevel());
+        assertEquals(new BigDecimal("0.00"), saved.getAvailableAmount());
+        assertEquals("Affordable with planning", saved.getVerdict());
+        assertEquals("warning", saved.getLevel());
         assertEquals("Want", saved.getPriority());
         assertEquals(LocalDate.now(), saved.getCheckDate());
         assertFalse(saved.isDeleted());
@@ -495,10 +467,7 @@ class AffordabilityServiceImplTest {
     private AffordabilityResponse checkAgainstAvailable(String monthlySurplus, String amount) {
         stubProfile(monthlySurplus, "0");
         stubSavings();
-        AffordabilityResponse response = affordabilityService.check(userId, request("Item", amount, LocalDate.now()));
-        assertFalse(response.getPlan().isEmpty());
-        assertEquals(new BigDecimal(monthlySurplus).setScale(2), response.getAvailable());
-        return response;
+        return affordabilityService.check(userId, request("Item", amount, LocalDate.now()));
     }
 
     private void stubProfile(String income, String expenses) {

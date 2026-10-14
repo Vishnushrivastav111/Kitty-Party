@@ -45,7 +45,7 @@ ALTER TABLE transactions ADD CONSTRAINT fk_transactions_user
     FOREIGN KEY (user_id) REFERENCES users (id);
 
 ALTER TABLE transactions ADD CONSTRAINT chk_transactions_type
-    CHECK (type IN ('income', 'expense'));
+    CHECK (type IN ('income', 'expense', 'refund', 'transfer'));
 
 ALTER TABLE transactions ADD CONSTRAINT chk_transactions_amount
     CHECK (amount > 0);
@@ -64,7 +64,7 @@ ALTER TABLE goals ADD CONSTRAINT chk_goals_saved
     CHECK (saved_amount >= 0 AND saved_amount <= target_amount);
 
 ALTER TABLE goals ADD CONSTRAINT chk_goals_status
-    CHECK (status IN ('active', 'completed', 'paused'));
+    CHECK (status IN ('draft', 'active', 'paused', 'completed', 'archived'));
 
 
 -- ------------------------------------------------------------

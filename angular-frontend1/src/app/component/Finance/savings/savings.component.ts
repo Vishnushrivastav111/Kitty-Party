@@ -87,7 +87,7 @@ export class SavingsComponent {
     };
     this.errors.set(errors);
     if (Object.values(errors).some(Boolean)) return;
-    const body = { title: this.form.title.trim(), category: this.form.category, amount: Number(this.form.amount), date: this.form.date, note: this.form.note || '' };
+    const body = { title: this.form.title.trim(), category: this.form.category, amount: Number(this.form.amount), date: this.form.date, note: this.form.note || '', goalId: this.form.goalId || null };
     this.busy.set(true);
     try {
       const warning = this.form.id ? await this.vault.updateSaving(this.form.id, body) : await this.vault.addSaving(body);
@@ -111,5 +111,5 @@ export class SavingsComponent {
 }
 
 function blank(): Saving {
-  return { id: '', title: '', category: 'Deposit', amount: 0, date: todayISO(), note: '' };
+  return { id: '', title: '', category: 'Deposit', amount: 0, date: todayISO(), note: '', goalId: '' };
 }

@@ -26,11 +26,17 @@ public class FinanceProfile {
     @Column(name = "monthly_income", nullable = false)
     private BigDecimal monthlyIncome;
 
+    @Column(name = "additional_income", nullable = false)
+    private BigDecimal additionalIncome = BigDecimal.ZERO;
+
     @Column(name = "pay_cycle")
     private String payCycle;
 
     @Column(name = "monthly_expenses", nullable = false)
     private BigDecimal monthlyExpenses;
+
+    @Column(name = "other_commitments", nullable = false)
+    private BigDecimal otherCommitments = BigDecimal.ZERO;
 
     @Column(name = "expense_categories")
     private String expenseCategories;
@@ -52,6 +58,9 @@ public class FinanceProfile {
 
     @Column(name = "current_savings", nullable = false)
     private BigDecimal currentSavings;
+
+    @Column(name = "emergency_reserve", nullable = false)
+    private BigDecimal emergencyReserve = BigDecimal.ZERO;
 
     @Column(name = "savings_type")
     private String savingsType;
@@ -91,6 +100,12 @@ public class FinanceProfile {
     public void setIncomeSource(String incomeSource) { this.incomeSource = incomeSource; }
     public BigDecimal getMonthlyIncome() { return monthlyIncome; }
     public void setMonthlyIncome(BigDecimal monthlyIncome) { this.monthlyIncome = monthlyIncome; }
+    public BigDecimal getAdditionalIncome() { return additionalIncome; }
+    public void setAdditionalIncome(BigDecimal additionalIncome) { this.additionalIncome = additionalIncome; }
+    public BigDecimal getOtherCommitments() { return otherCommitments; }
+    public void setOtherCommitments(BigDecimal otherCommitments) { this.otherCommitments = otherCommitments; }
+    public BigDecimal getEmergencyReserve() { return emergencyReserve; }
+    public void setEmergencyReserve(BigDecimal emergencyReserve) { this.emergencyReserve = emergencyReserve; }
     public String getPayCycle() { return payCycle; }
     public void setPayCycle(String payCycle) { this.payCycle = payCycle; }
     public BigDecimal getMonthlyExpenses() { return monthlyExpenses; }

@@ -9,9 +9,8 @@
   </div>
 }
 <div class="alert-box info">
-  The API does not return recommended budgets, recommended goal contributions, projected timelines, or planning suggestions. Those values are not shown.
+  The API does not invent a recommended budget. Guidance below uses your saved income, obligations, budgets, and goals.
   This month's spending is {{ money(vault.position().monthlySpending) }} against a monthly budget of {{ vault.position().monthlyBudget == null ? '—' : money(vault.position().monthlyBudget) }}.
-  Budget overrun {{ vault.position().budgetOverrun == null ? '—' : money(vault.position().budgetOverrun) }} is not withdrawn from total savings {{ money(vault.position().totalSavings) }}.
 </div>
 @if (loading()) {
   <div class="empty-state">Loading the monthly summary…</div>
@@ -25,13 +24,19 @@
   <div class="cards">
     <div class="card"><div><h3>Monthly income</h3><h2>{{ money(row['monthlyIncome']) }}</h2></div></div>
     <div class="card"><div><h3>Monthly expenses</h3><h2>{{ money(row['monthlyExpenses']) }}</h2></div></div>
-    <div class="card"><div><h3>Monthly EMI</h3><h2>{{ money(row['monthlyEmi']) }}</h2><p>Shown separately. It is not subtracted from surplus again.</p></div></div>
-    <div class="card"><div><h3>Monthly surplus</h3><h2>{{ surplus() === null ? '—' : money(surplus()) }}</h2><p>Value returned by the monthly summary.</p></div></div>
+    <div class="card"><div><h3>Monthly EMI</h3><h2>{{ money(row['monthlyEmi']) }}</h2><p>Subtracted once when planning capacity is calculated.</p></div></div>
+    <div class="card"><div><h3>Monthly surplus</h3><h2>{{ surplus() === null ? '—' : money(surplus()) }}</h2><p>Income minus essential expenses, EMI, and other commitments, floored at zero.</p></div></div>
   </div>
   <div class="panel">
-    <h2>Savings rate</h2>
-    <p>{{ row['savingsRatePercent'] == null ? '—' : row['savingsRatePercent'] + '%' }} from the monthly summary.</p>
-    <p>Profile savings: {{ vault.finance()?.currentSavings == null ? '—' : money(vault.finance()?.currentSavings) }}</p>
+    <h2>Guidance</h2>
+    <p>These notes use your saved profile. They are educational and are not a prediction of investment returns.</p>
+    @if (insights().length) {
+      <ul>
+        @for (note of insights(); track note) { <li>{{ note }}</li> }
+      </ul>
+    } @else {
+      <p>Complete financial setup to see capacity, reserve, and goal guidance.</p>
+    }
   </div>
   }
 }

@@ -23,6 +23,9 @@ public class FinanceProfileRequest {
     private String savingsType;
     private BigDecimal investments;
     private JsonNode investmentTypes;
+    private BigDecimal additionalIncome;
+    private BigDecimal otherCommitments;
+    private BigDecimal emergencyReserve;
     private BigDecimal monthlyBudget;
     private String budgetStyle;
     private String setupDate;
@@ -31,6 +34,12 @@ public class FinanceProfileRequest {
     public void setIncomeSource(String incomeSource) { this.incomeSource = incomeSource; }
     public BigDecimal getMonthlyIncome() { return monthlyIncome; }
     public void setMonthlyIncome(BigDecimal monthlyIncome) { this.monthlyIncome = monthlyIncome; }
+    public BigDecimal getAdditionalIncome() { return additionalIncome; }
+    public void setAdditionalIncome(BigDecimal additionalIncome) { this.additionalIncome = additionalIncome; }
+    public BigDecimal getOtherCommitments() { return otherCommitments; }
+    public void setOtherCommitments(BigDecimal otherCommitments) { this.otherCommitments = otherCommitments; }
+    public BigDecimal getEmergencyReserve() { return emergencyReserve; }
+    public void setEmergencyReserve(BigDecimal emergencyReserve) { this.emergencyReserve = emergencyReserve; }
     public String getPayCycle() { return payCycle; }
     public void setPayCycle(String payCycle) { this.payCycle = payCycle; }
     public BigDecimal getMonthlyExpenses() { return monthlyExpenses; }

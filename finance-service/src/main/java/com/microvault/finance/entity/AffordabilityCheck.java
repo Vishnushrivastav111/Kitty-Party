@@ -33,6 +33,18 @@ public class AffordabilityCheck {
     private String level;
     private String priority;
 
+    @Column(name = "payment_method")
+    private String paymentMethod;
+
+    @Column(name = "emi_months")
+    private Integer emiMonths;
+
+    @Column(name = "monthly_emi")
+    private BigDecimal monthlyInstallment;
+
+    @Column(name = "total_repayment")
+    private BigDecimal totalRepayment;
+
     @Column(name = "check_date", nullable = false)
     private LocalDate checkDate;
 
@@ -64,6 +76,14 @@ public class AffordabilityCheck {
     public void setLevel(String level) { this.level = level; }
     public String getPriority() { return priority; }
     public void setPriority(String priority) { this.priority = priority; }
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+    public Integer getEmiMonths() { return emiMonths; }
+    public void setEmiMonths(Integer emiMonths) { this.emiMonths = emiMonths; }
+    public BigDecimal getMonthlyInstallment() { return monthlyInstallment; }
+    public void setMonthlyInstallment(BigDecimal monthlyInstallment) { this.monthlyInstallment = monthlyInstallment; }
+    public BigDecimal getTotalRepayment() { return totalRepayment; }
+    public void setTotalRepayment(BigDecimal totalRepayment) { this.totalRepayment = totalRepayment; }
     public LocalDate getCheckDate() { return checkDate; }
     public void setCheckDate(LocalDate checkDate) { this.checkDate = checkDate; }
     public LocalDateTime getCreatedAt() { return createdAt; }

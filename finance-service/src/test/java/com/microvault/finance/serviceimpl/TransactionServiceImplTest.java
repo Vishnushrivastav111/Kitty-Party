@@ -38,6 +38,9 @@ class TransactionServiceImplTest {
     @Mock
     private TransactionRepository transactionRepository;
 
+    @Mock
+    private BudgetAlertService budgetAlertService;
+
     @InjectMocks
     private TransactionServiceImpl transactionService;
 
@@ -106,12 +109,12 @@ class TransactionServiceImplTest {
     @Test
     void createRejectsUnknownType() {
         TransactionRequest request = request();
-        request.setType("transfer");
+        request.setType("gift");
 
         ValidationException exception = assertThrows(ValidationException.class,
                 () -> transactionService.create(userId, request));
 
-        assertEquals("Type must be income or expense", exception.getMessage());
+        assertEquals("Type must be income, expense, refund, or transfer", exception.getMessage());
         verify(transactionRepository, never()).save(any());
     }
 

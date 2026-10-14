@@ -6,6 +6,7 @@ import { ApiError } from '../../service/api.service';
 import { AuthService } from '../../service/auth.service';
 import { ROLES } from '../format';
 import { UserService } from '../../service/user.service';
+import { SiteFooterComponent } from '../site-footer.component';
 
 interface NavLink {
   kind: 'link';
@@ -26,7 +27,7 @@ type NavItem = NavLink | NavSection;
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgClass],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgClass, SiteFooterComponent],
   templateUrl: './shell.component.html',
   styleUrl: './shell.component.scss',
 })

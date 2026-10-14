@@ -5,7 +5,7 @@ import { AuthService } from '../../../service/auth.service';
 import { DialogService } from '../../../shared/dialog.service';
 import { parseApiError } from '../../../shared/api-error';
 import { assignError } from '../../../shared/field-state';
-import { API_CAPABILITIES, profileSurplus } from '../../../shared/finance-rules';
+import { API_CAPABILITIES, planningCapacity, profileSurplus } from '../../../shared/finance-rules';
 import { asStringList, formatINR, homePath, num, ROLES, todayISO, Validators } from '../../../shared/format';
 import { FinanceService } from '../../../service/finance.service';
 
@@ -30,8 +30,10 @@ export class SetupComponent implements OnInit {
   readonly investTypes = new Set<string>();
   incomeSource = '';
   monthlyIncome: number | null = null;
+  additionalIncome: number | null = null;
   payCycle = '';
   monthlyExpenses: number | null = null;
+  otherCommitments: number | null = null;
   hasLoan = 'no';
   loanType = '';
   loanAmount = 0;
@@ -39,6 +41,7 @@ export class SetupComponent implements OnInit {
   loansEmi = 0;
   emiStartDate = todayISO();
   currentSavings: number | null = null;
+  emergencyReserve: number | null = null;
   savingsType = '';
   investments = 0;
   monthlyBudget: number | null = null;
@@ -72,13 +75,16 @@ export class SetupComponent implements OnInit {
     if (!existing) return;
     this.incomeSource = existing.incomeSource || '';
     this.monthlyIncome = num(existing.monthlyIncome);
+    this.additionalIncome = num(existing.additionalIncome);
     this.payCycle = existing.payCycle || '';
     this.monthlyExpenses = num(existing.monthlyExpenses);
+    this.otherCommitments = num(existing.otherCommitments);
     this.loanType = existing.loanType || '';
     this.loanAmount = num(existing.loanAmount);
     this.loansEmi = num(existing.loansEmi || existing.monthlyEmi);
     this.emiStartDate = (existing.emiStartDate || this.today).slice(0, 10);
     this.currentSavings = num(existing.currentSavings);
+    this.emergencyReserve = num(existing.emergencyReserve);
     this.savingsType = existing.savingsType || '';
     this.investments = num(existing.investments);
     this.monthlyBudget = num(existing.monthlyBudget);
@@ -99,7 +105,16 @@ export class SetupComponent implements OnInit {
   }
 
   surplus(): number {
-    return profileSurplus(num(this.monthlyIncome), num(this.monthlyExpenses));
+    return profileSurplus(num(this.monthlyIncome) + num(this.additionalIncome), num(this.monthlyExpenses));
+  }
+
+  capacity(): number {
+    return planningCapacity(
+      num(this.monthlyIncome) + num(this.additionalIncome),
+      num(this.monthlyExpenses),
+      this.hasEmi === 'yes' ? num(this.loansEmi) : 0,
+      num(this.otherCommitments),
+    );
   }
 
   touch(field: string, message: string): void {
@@ -133,6 +148,7 @@ export class SetupComponent implements OnInit {
       monthlyIncome: Validators.amount(this.monthlyIncome, 'Monthly income'),
       monthlyExpenses: Validators.amount(this.monthlyExpenses, 'Monthly expenses'),
       currentSavings: Validators.amount(this.currentSavings, 'Current savings'),
+      emergencyReserve: num(this.emergencyReserve) > num(this.currentSavings) ? 'Emergency reserve cannot be larger than liquid savings' : '',
       monthlyBudget: Validators.amount(this.monthlyBudget, 'Monthly budget'),
       expenseCats: this.expenseCats.size ? '' : 'Select at least one expense category',
       setupDate: Validators.dateNotFuture(this.setupDate, 'As-of date'),
@@ -162,8 +178,10 @@ export class SetupComponent implements OnInit {
       await this.vault.saveFinance({
         incomeSource: this.incomeSource,
         monthlyIncome: num(this.monthlyIncome),
+        additionalIncome: num(this.additionalIncome),
         payCycle: this.payCycle,
         monthlyExpenses: num(this.monthlyExpenses),
+        otherCommitments: num(this.otherCommitments),
         expenseCategories: [...this.expenseCats],
         hasLoan: this.hasLoan,
         loanType: this.loanType,
@@ -172,6 +190,7 @@ export class SetupComponent implements OnInit {
         monthlyEmi: this.hasEmi === 'yes' ? num(this.loansEmi) : 0,
         emiStartDate: this.emiStartDate,
         currentSavings: num(this.currentSavings),
+        emergencyReserve: num(this.emergencyReserve),
         savingsType: this.savingsType,
         investments: num(this.investments),
         investmentTypes: [...this.investTypes],
@@ -180,16 +199,19 @@ export class SetupComponent implements OnInit {
         setupDate: this.setupDate,
       });
       const followUp: string[] = [];
-      if (num(this.currentSavings) > 0 && !this.vault.savings().some((row) => row.title === 'Opening balance')) {
-        try {
-          await this.vault.addSaving({ title: 'Opening balance', amount: num(this.currentSavings), category: 'Opening', date: this.setupDate, note: 'From financial setup' });
-        } catch (error) {
-          followUp.push(parseApiError(error).message);
-        }
+      if (num(this.emergencyReserve) > num(this.currentSavings)) {
+        followUp.push('Emergency reserve cannot be larger than current liquid savings.');
       }
       if (this.hasGoal === 'yes' && this.primaryGoal.trim()) {
         try {
-          await this.vault.addGoal({ title: this.primaryGoal.trim(), target: num(this.goalTarget) || 1, saved: 0, deadline: this.goalDate, status: 'active', category: this.goalCategory || 'Personal' });
+          await this.vault.addGoal({
+            title: this.primaryGoal.trim(),
+            target: num(this.goalTarget) || 1,
+            saved: 0,
+            deadline: this.goalDate,
+            status: 'draft',
+            category: this.goalCategory || 'Personal',
+          });
         } catch (error) {
           followUp.push(parseApiError(error).message);
         }
@@ -201,7 +223,7 @@ export class SetupComponent implements OnInit {
           followUp.push(parseApiError(error).message);
         }
       }
-      this.savedState.set('Saved by the server. Administrative approval is not available, so this profile is the confirmed record.');
+      this.savedState.set('Financial profile saved. Budgets, goals, and affordability now use this plan.');
       if (followUp.length) await this.dialog.notice(followUp.join(' '), 'Profile saved');
       await this.router.navigateByUrl('/dashboard');
     } catch (error) {

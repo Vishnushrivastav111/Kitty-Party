@@ -13,7 +13,7 @@ import {
   goalProgress,
   goalSeries,
   incomeExpenseSeries,
-  profileSurplus,
+  planningCapacity,
   savingsTrend,
   stepGraph,
 } from '../../shared/finance-rules';
@@ -44,9 +44,15 @@ export class DashboardComponent {
   readonly name = computed(() => this.auth.user()?.fullName || this.vault.stats()?.fullName || 'Member');
   readonly stats = computed(() => this.vault.stats());
   readonly surplus = computed(() => {
+    const finance = this.vault.finance();
     const stats = this.stats();
-    if (!stats) return null;
-    return profileSurplus(stats.income, stats.expenses);
+    if (!finance || !stats) return null;
+    return planningCapacity(num(finance.monthlyIncome) + num(finance.additionalIncome), num(finance.monthlyExpenses), num(finance.monthlyEmi), num(finance.otherCommitments));
+  });
+  readonly unallocated = computed(() => {
+    const finance = this.vault.finance();
+    if (!finance) return null;
+    return Math.max(0, num(finance.currentSavings) - num(finance.emergencyReserve));
   });
   readonly position = this.vault.position;
   readonly budgetPct = computed(() => {
@@ -57,7 +63,7 @@ export class DashboardComponent {
   readonly saveWidth = computed(() => Math.min(100, this.position().totalSavings / 2000));
   readonly goalWidth = computed(() => Math.min(100, num(this.stats()?.activeGoals) * 20));
   readonly page = computed(() => queryRows(this.vault.transactions(), this.search(), ['name', 'category', 'type', 'date'], { type: this.type() }, this.pageNo(), 5));
-  readonly goalPreview = computed(() => this.vault.goals().slice(0, 4));
+  readonly goalPreview = computed(() => this.vault.goals().filter((goal) => (goal.status || '').toLowerCase() === 'active').slice(0, 4));
   readonly graphs = computed(() => dashboardGraphs({
     expenseCount: this.vault.transactions().filter((row) => row.type === 'expense').length,
     hasStats: !!this.stats(),

@@ -25,13 +25,24 @@ public class Goal {
 
     private String category;
 
+    private String description;
+
     @Column(name = "target_amount", nullable = false)
     private BigDecimal target;
 
     @Column(name = "saved_amount", nullable = false)
     private BigDecimal saved;
 
+    @Column(name = "opening_saved", nullable = false)
+    private BigDecimal openingSaved = BigDecimal.ZERO;
+
     private LocalDate deadline;
+
+    @Column(nullable = false)
+    private String priority = "medium";
+
+    @Column(name = "planned_contribution", nullable = false)
+    private BigDecimal plannedContribution = BigDecimal.ZERO;
 
     @Column(nullable = false)
     private String status;
@@ -56,6 +67,14 @@ public class Goal {
     public void setTitle(String title) { this.title = title; }
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+    public BigDecimal getOpeningSaved() { return openingSaved; }
+    public void setOpeningSaved(BigDecimal openingSaved) { this.openingSaved = openingSaved; }
+    public String getPriority() { return priority; }
+    public void setPriority(String priority) { this.priority = priority; }
+    public BigDecimal getPlannedContribution() { return plannedContribution; }
+    public void setPlannedContribution(BigDecimal plannedContribution) { this.plannedContribution = plannedContribution; }
     public BigDecimal getTarget() { return target; }
     public void setTarget(BigDecimal target) { this.target = target; }
     public BigDecimal getSaved() { return saved; }

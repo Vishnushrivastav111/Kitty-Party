@@ -23,6 +23,16 @@ public class Notification {
     private String type;
     @Column(name = "is_read", nullable = false)
     private boolean read;
+    @Column(name = "read_at")
+    private LocalDateTime readAt;
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+    @Column(nullable = false)
+    private boolean dismissed;
+    @Column(name = "reference_key")
+    private String referenceKey;
+    @Column(name = "budget_id")
+    private UUID budgetId;
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
     @Column(name = "updated_at", nullable = false)
@@ -44,6 +54,16 @@ public class Notification {
     public void setType(String type) { this.type = type; }
     public boolean isRead() { return read; }
     public void setRead(boolean read) { this.read = read; }
+    public LocalDateTime getReadAt() { return readAt; }
+    public void setReadAt(LocalDateTime readAt) { this.readAt = readAt; }
+    public LocalDateTime getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+    public boolean isDismissed() { return dismissed; }
+    public void setDismissed(boolean dismissed) { this.dismissed = dismissed; }
+    public String getReferenceKey() { return referenceKey; }
+    public void setReferenceKey(String referenceKey) { this.referenceKey = referenceKey; }
+    public UUID getBudgetId() { return budgetId; }
+    public void setBudgetId(UUID budgetId) { this.budgetId = budgetId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

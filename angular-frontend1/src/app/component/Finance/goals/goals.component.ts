@@ -1,4 +1,5 @@
 import { Component, computed, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { destroyChart, mountChart } from '../../../shared/charts';
 import { DialogService } from '../../../shared/dialog.service';
@@ -21,6 +22,7 @@ import { PagerComponent } from '../../../shared/pager.component';
 export class GoalsComponent {
   readonly vault = inject(FinanceService);
   private readonly dialog = inject(DialogService);
+  private readonly route = inject(ActivatedRoute);
   private readonly stage = viewChild<ElementRef<HTMLCanvasElement>>('stage');
   readonly categories = GOAL_CATEGORIES;
   readonly today = todayISO();
@@ -44,6 +46,12 @@ export class GoalsComponent {
 
   constructor() {
     effect(() => this.paint());
+    const title = this.route.snapshot.queryParamMap.get('title');
+    const amount = Number(this.route.snapshot.queryParamMap.get('amount'));
+    if (title) {
+      this.form = { ...blank(), title, target: amount > 0 ? amount : 0, status: 'draft' };
+      this.editing.set(true);
+    }
   }
 
   showGraph(index: number): void {
@@ -97,7 +105,7 @@ export class GoalsComponent {
   deadlineOk(value: string): string { return Validators.dateNotPast(value || '', 'Deadline'); }
   targetOk(value: unknown): string { return Number(value) > 0 ? '' : 'Target must be greater than zero'; }
   open(row: Goal | null): void {
-    this.form = row ? { ...row, target: num(row.target), saved: num(row.saved), deadline: (row.deadline || '').slice(0, 10) } : blank();
+    this.form = row ? { ...row, target: num(row.target), saved: num(row.saved), plannedContribution: num(row.plannedContribution), deadline: (row.deadline || '').slice(0, 10) } : blank();
     this.errors.set({});
     this.editing.set(true);
   }
@@ -107,11 +115,23 @@ export class GoalsComponent {
       category: Validators.required(this.form.category, 'Category'),
       target: Number(this.form.target) > 0 ? '' : 'Target must be greater than zero',
       saved: Validators.amount(this.form.saved, 'Saved amount'),
-      deadline: Validators.dateNotPast(this.form.deadline || '', 'Deadline'),
+      deadline: this.form.status === 'active'
+        ? Validators.dateNotPast(this.form.deadline || '', 'Deadline')
+        : (this.form.deadline ? Validators.dateNotPast(this.form.deadline, 'Deadline') : ''),
     };
     this.errors.set(errors);
     if (Object.values(errors).some(Boolean)) return;
-    const body = { title: this.form.title.trim(), category: this.form.category, target: Number(this.form.target), saved: Number(this.form.saved), deadline: this.form.deadline, status: this.form.status };
+    const body = {
+      title: this.form.title.trim(),
+      category: this.form.category,
+      target: Number(this.form.target),
+      saved: Number(this.form.saved),
+      deadline: this.form.deadline,
+      status: this.form.status,
+      plannedContribution: Number(this.form.plannedContribution) || 0,
+      description: this.form.description || '',
+      priority: this.form.priority || 'medium',
+    };
     this.busy.set(true);
     try {
       const warning = this.form.id ? await this.vault.updateGoal(this.form.id, body) : await this.vault.addGoal(body);
@@ -131,5 +151,5 @@ export class GoalsComponent {
 }
 
 function blank(): Goal {
-  return { id: '', title: '', category: '', target: 0, saved: 0, deadline: todayISO(), status: 'active' };
+  return { id: '', title: '', category: '', target: 0, saved: 0, deadline: '', status: 'draft', plannedContribution: 0, priority: 'medium', description: '' };
 }

@@ -7,6 +7,8 @@ import com.microvault.finance.exception.ResourceNotFoundException;
 import com.microvault.finance.exception.ValidationException;
 import com.microvault.finance.repository.TransactionRepository;
 import com.microvault.finance.service.TransactionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +22,14 @@ import java.util.UUID;
 @Transactional
 public class TransactionServiceImpl implements TransactionService {
 
-    private final TransactionRepository transactionRepository;
+    private static final Logger log = LoggerFactory.getLogger(TransactionServiceImpl.class);
 
-    public TransactionServiceImpl(TransactionRepository transactionRepository) {
+    private final TransactionRepository transactionRepository;
+    private final BudgetAlertService budgetAlertService;
+
+    public TransactionServiceImpl(TransactionRepository transactionRepository, BudgetAlertService budgetAlertService) {
         this.transactionRepository = transactionRepository;
+        this.budgetAlertService = budgetAlertService;
     }
 
     @Override
@@ -37,7 +43,9 @@ public class TransactionServiceImpl implements TransactionService {
         transaction.setCreatedAt(now);
         transaction.setUpdatedAt(now);
         transaction.setDeleted(false);
-        return toResponse(transactionRepository.save(transaction));
+        TransactionResponse response = toResponse(transactionRepository.save(transaction));
+        refreshAlerts(userId);
+        return response;
     }
 
     @Override
@@ -46,7 +54,9 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction transaction = load(userId, id);
         copy(request, transaction);
         transaction.setUpdatedAt(LocalDateTime.now());
-        return toResponse(transactionRepository.save(transaction));
+        TransactionResponse response = toResponse(transactionRepository.save(transaction));
+        refreshAlerts(userId);
+        return response;
     }
 
     @Override
@@ -70,6 +80,7 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction transaction = load(userId, id);
         markDeleted(transaction);
         transactionRepository.save(transaction);
+        refreshAlerts(userId);
     }
 
     @Override
@@ -78,12 +89,13 @@ public class TransactionServiceImpl implements TransactionService {
             markDeleted(transaction);
             transactionRepository.save(transaction);
         }
+        refreshAlerts(userId);
     }
 
     private void validate(TransactionRequest request) {
         String type = request.getType() == null ? "" : request.getType().trim().toLowerCase();
-        if (!"income".equals(type) && !"expense".equals(type)) {
-            throw new ValidationException("Type must be income or expense");
+        if (!"income".equals(type) && !"expense".equals(type) && !"refund".equals(type) && !"transfer".equals(type)) {
+            throw new ValidationException("Type must be income, expense, refund, or transfer");
         }
         if (request.getDate().isAfter(LocalDate.now())) {
             throw new ValidationException("Date cannot be in the future");
@@ -102,6 +114,14 @@ public class TransactionServiceImpl implements TransactionService {
     private Transaction load(UUID userId, UUID id) {
         return transactionRepository.findByIdAndUserIdAndDeletedFalse(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+    }
+
+    private void refreshAlerts(UUID userId) {
+        try {
+            budgetAlertService.evaluate(userId);
+        } catch (RuntimeException exception) {
+            log.warn("Budget alerts were not refreshed: {}", exception.getMessage());
+        }
     }
 
     private void markDeleted(Transaction transaction) {

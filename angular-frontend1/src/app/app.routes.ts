@@ -5,6 +5,7 @@ import { LoginComponent } from './component/Auth/login.component';
 import { LogoutComponent } from './component/Auth/logout/logout.component';
 import { RegisterComponent } from './component/Auth/register/register.component';
 import { TermsComponent } from './component/Auth/terms/terms.component';
+import { PrivacyComponent } from './component/Auth/privacy/privacy.component';
 import { AdminAdminsComponent } from './component/Admin/admin-admins/admin-admins.component';
 import { AdminFeedbackComponent } from './component/Admin/admin-feedback/admin-feedback.component';
 import { AdminNewsComponent } from './component/Admin/admin-news/admin-news.component';
@@ -34,6 +35,7 @@ export const routes: Routes = [
   { path: 'register', component: RegisterComponent, canActivate: [guestGuard] },
   { path: 'forgot-password', component: ForgotComponent, canActivate: [guestGuard] },
   { path: 'terms', component: TermsComponent },
+  { path: 'privacy', component: PrivacyComponent },
   { path: 'setup', component: SetupComponent, canActivate: [authGuard, memberGuard] },
   {
     path: '',

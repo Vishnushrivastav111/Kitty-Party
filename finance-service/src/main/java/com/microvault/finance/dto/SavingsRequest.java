@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SavingsRequest {
@@ -22,6 +23,7 @@ public class SavingsRequest {
     @NotNull(message = "Date is required")
     private LocalDate date;
     private String note;
+    private UUID goalId;
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
@@ -33,4 +35,6 @@ public class SavingsRequest {
     public void setDate(LocalDate date) { this.date = date; }
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
+    public UUID getGoalId() { return goalId; }
+    public void setGoalId(UUID goalId) { this.goalId = goalId; }
 }

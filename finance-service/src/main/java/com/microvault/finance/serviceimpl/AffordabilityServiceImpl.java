@@ -3,14 +3,19 @@ package com.microvault.finance.serviceimpl;
 import com.microvault.finance.dto.AffordabilityRequest;
 import com.microvault.finance.dto.AffordabilityResponse;
 import com.microvault.finance.entity.AffordabilityCheck;
+import com.microvault.finance.entity.Budget;
 import com.microvault.finance.entity.FinanceProfile;
+import com.microvault.finance.entity.Goal;
 import com.microvault.finance.entity.SavingsEntry;
 import com.microvault.finance.exception.ResourceNotFoundException;
 import com.microvault.finance.exception.ValidationException;
 import com.microvault.finance.repository.AffordabilityRepository;
+import com.microvault.finance.repository.BudgetRepository;
 import com.microvault.finance.repository.FinanceProfileRepository;
+import com.microvault.finance.repository.GoalRepository;
 import com.microvault.finance.repository.SavingsRepository;
 import com.microvault.finance.service.AffordabilityService;
+import com.microvault.finance.service.FinancialPlan;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,18 +31,22 @@ import java.util.UUID;
 @Transactional
 public class AffordabilityServiceImpl implements AffordabilityService {
 
-    private static final BigDecimal SAVINGS_SHARE = new BigDecimal("0.30");
-
     private final AffordabilityRepository affordabilityRepository;
     private final FinanceProfileRepository financeProfileRepository;
     private final SavingsRepository savingsRepository;
+    private final BudgetRepository budgetRepository;
+    private final GoalRepository goalRepository;
 
     public AffordabilityServiceImpl(AffordabilityRepository affordabilityRepository,
                                     FinanceProfileRepository financeProfileRepository,
-                                    SavingsRepository savingsRepository) {
+                                    SavingsRepository savingsRepository,
+                                    BudgetRepository budgetRepository,
+                                    GoalRepository goalRepository) {
         this.affordabilityRepository = affordabilityRepository;
         this.financeProfileRepository = financeProfileRepository;
         this.savingsRepository = savingsRepository;
+        this.budgetRepository = budgetRepository;
+        this.goalRepository = goalRepository;
     }
 
     @Override
@@ -45,45 +54,87 @@ public class AffordabilityServiceImpl implements AffordabilityService {
         if (request.getCheckDate().isAfter(LocalDate.now())) {
             throw new ValidationException("Check date cannot be in the future");
         }
+        String payment = request.getPaymentMethod() == null ? "cash" : request.getPaymentMethod().trim().toLowerCase();
+        if (!"cash".equals(payment) && !"emi".equals(payment)) {
+            throw new ValidationException("Payment method must be cash or emi");
+        }
+        BigDecimal installment = null;
+        BigDecimal totalRepayment = null;
+        if ("emi".equals(payment)) {
+            if (request.getEmiMonths() == null || request.getEmiMonths() < 1) {
+                throw new ValidationException("Enter the number of EMI months");
+            }
+            installment = FinancialPlan.monthlyInstallment(request.getAmount(), request.getEmiMonths(), request.getAnnualInterestPercent());
+            if (installment == null) {
+                throw new ValidationException("EMI details are not enough to calculate a repayment");
+            }
+            totalRepayment = installment.multiply(BigDecimal.valueOf(request.getEmiMonths())).setScale(2, RoundingMode.HALF_UP);
+        }
 
         FinanceProfile profile = financeProfileRepository.findByUserIdAndDeletedFalse(userId).orElse(null);
-        BigDecimal income = profile == null ? BigDecimal.ZERO : money(profile.getMonthlyIncome());
-        BigDecimal expenses = profile == null ? BigDecimal.ZERO : money(profile.getMonthlyExpenses());
-        BigDecimal totalSavings = totalSavings(userId);
-
-        BigDecimal surplus = income.subtract(expenses);
-        if (surplus.compareTo(BigDecimal.ZERO) < 0) {
-            surplus = BigDecimal.ZERO;
-        }
-        BigDecimal available = surplus.add(totalSavings.multiply(SAVINGS_SHARE)).setScale(2, RoundingMode.HALF_UP);
-
-        BigDecimal ratio;
-        if (available.compareTo(BigDecimal.ZERO) <= 0) {
-            ratio = BigDecimal.ONE;
-        } else {
-            ratio = request.getAmount().divide(available, 4, RoundingMode.HALF_UP);
-        }
+        List<SavingsEntry> savings = savingsRepository.findByUserIdAndDeletedFalseOrderByDateDesc(userId);
+        BigDecimal spendable = spendableCash(profile, savings);
+        BigDecimal planning = planning(profile);
+        BigDecimal room = monthlyRoom(userId, profile, planning);
 
         String verdict;
         String level;
         String suggestion;
-        if (ratio.compareTo(new BigDecimal("0.30")) <= 0) {
-            verdict = "Comfortably affordable";
-            level = "success";
-            suggestion = "Buy now. This uses 30% or less of your available capacity. Keep the rest for regular bills.";
-        } else if (ratio.compareTo(new BigDecimal("0.60")) <= 0) {
-            verdict = "Affordable with caution";
-            level = "warning";
-            suggestion = "You can buy this, but it uses a large share of this month. Wait for the next pay cycle if it is not urgent.";
-        } else if (ratio.compareTo(BigDecimal.ONE) <= 0) {
-            verdict = "Tight — consider delaying";
-            level = "warning";
-            suggestion = "Delay this purchase. Put the monthly surplus into savings, then check again.";
-        } else {
-            verdict = "Not recommended";
+        BigDecimal shortfall = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        Integer monthsToSave = null;
+        boolean canCreateGoal = false;
+
+        if (profile == null) {
+            verdict = "Not currently affordable";
             level = "danger";
-            BigDecimal shortfall = request.getAmount().subtract(available).setScale(2, RoundingMode.HALF_UP);
-            suggestion = "Do not buy this now. You are short by " + shortfall + ". Save that amount before you purchase.";
+            suggestion = "Complete financial setup before treating this purchase as affordable. Spendable cash on record is "
+                    + FinancialPlan.rupee(spendable) + ".";
+        } else if (planning.signum() < 0) {
+            verdict = "Not currently affordable";
+            level = "danger";
+            suggestion = "Essential expenses, EMI, and other commitments already exceed monthly income by "
+                    + FinancialPlan.rupee(planning.abs()) + ". This purchase would add to that gap.";
+        } else if ("emi".equals(payment)) {
+            if (installment.compareTo(FinancialPlan.nonNegative(room)) <= 0 && room.signum() > 0) {
+                verdict = "Affordable now";
+                level = "success";
+                suggestion = "The extra EMI of " + FinancialPlan.rupee(installment)
+                        + " fits the " + FinancialPlan.rupee(room)
+                        + " still available each month. Total repayment is " + FinancialPlan.rupee(totalRepayment)
+                        + ". This is planning guidance, not a guarantee.";
+            } else {
+                verdict = "Not currently affordable";
+                level = "danger";
+                suggestion = "The extra EMI of " + FinancialPlan.rupee(installment)
+                        + " is above the " + FinancialPlan.rupee(FinancialPlan.nonNegative(room))
+                        + " left after obligations, budgets, and active goals. A longer tenure or a smaller amount may fit.";
+            }
+        } else if (request.getAmount().compareTo(spendable) <= 0) {
+            verdict = "Affordable now";
+            level = "success";
+            suggestion = "Unallocated cash of " + FinancialPlan.rupee(spendable)
+                    + " covers " + FinancialPlan.rupee(request.getAmount())
+                    + " without using emergency reserves, goal savings, or investments.";
+        } else {
+            shortfall = FinancialPlan.money(request.getAmount().subtract(spendable));
+            BigDecimal capacity = FinancialPlan.nonNegative(room);
+            if (capacity.signum() > 0) {
+                monthsToSave = shortfall.divide(capacity, 0, RoundingMode.CEILING).intValue();
+                if (monthsToSave < 1) {
+                    monthsToSave = 1;
+                }
+                verdict = "Affordable with planning";
+                level = "warning";
+                canCreateGoal = true;
+                suggestion = "You would need another " + FinancialPlan.rupee(shortfall)
+                        + ". About " + monthsToSave + " month" + (monthsToSave == 1 ? "" : "s")
+                        + " at " + FinancialPlan.rupee(capacity) + " a month can close that gap. Create a savings goal if you want to track it.";
+            } else {
+                verdict = "Not currently affordable";
+                level = "danger";
+                suggestion = "The shortfall is " + FinancialPlan.rupee(shortfall)
+                        + " and there is no monthly capacity left for a new savings plan after obligations, budgets, and active goals.";
+            }
         }
 
         AffordabilityCheck check = new AffordabilityCheck();
@@ -91,10 +142,14 @@ public class AffordabilityServiceImpl implements AffordabilityService {
         check.setUserId(userId);
         check.setItemName(request.getItemName().trim());
         check.setAmount(request.getAmount());
-        check.setAvailableAmount(available);
+        check.setAvailableAmount(spendable);
         check.setVerdict(verdict);
         check.setLevel(level);
         check.setPriority(request.getPriority() == null ? "Want" : request.getPriority());
+        check.setPaymentMethod(payment);
+        check.setEmiMonths(request.getEmiMonths());
+        check.setMonthlyInstallment(installment);
+        check.setTotalRepayment(totalRepayment);
         check.setCheckDate(request.getCheckDate());
         LocalDateTime now = LocalDateTime.now();
         check.setCreatedAt(now);
@@ -103,7 +158,13 @@ public class AffordabilityServiceImpl implements AffordabilityService {
 
         AffordabilityResponse response = toResponse(affordabilityRepository.save(check));
         response.setSuggestion(suggestion);
-        response.setPlan(buildPlan(income, expenses, totalSavings, available, request.getAmount(), suggestion));
+        response.setShortfall(shortfall);
+        response.setMonthsToSave(monthsToSave);
+        response.setMonthlyInstallment(installment);
+        response.setTotalRepayment(totalRepayment);
+        response.setPaymentMethod(payment);
+        response.setCanCreateGoal(canCreateGoal);
+        response.setPlan(buildPlan(profile, spendable, planning, room, request.getAmount(), installment, totalRepayment, suggestion));
         return response;
     }
 
@@ -141,28 +202,77 @@ public class AffordabilityServiceImpl implements AffordabilityService {
         }
     }
 
-    /**
-     * Available capacity = max(0, monthly income - monthly expenses) + 30% of savings entries.
-     * The purchase is then compared with that capacity to choose a verdict and a short plan.
-     */
-    private List<String> buildPlan(BigDecimal income, BigDecimal expenses, BigDecimal savings,
-                                   BigDecimal available, BigDecimal amount, String suggestion) {
-        List<String> plan = new ArrayList<>();
-        plan.add("Monthly surplus = income " + income + " minus expenses " + expenses + ". A negative surplus counts as zero.");
-        plan.add("Add 30% of savings (" + savings + ") to that surplus. Available capacity is " + available + ".");
-        plan.add("The purchase amount is " + amount + ".");
-        plan.add(suggestion);
-        return plan;
+    private BigDecimal planning(FinanceProfile profile) {
+        if (profile == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal income = FinancialPlan.totalMonthlyIncome(profile.getMonthlyIncome(), profile.getAdditionalIncome());
+        return FinancialPlan.planningCapacity(income, profile.getMonthlyExpenses(), profile.getMonthlyEmi(), profile.getOtherCommitments());
     }
 
-    private BigDecimal totalSavings(UUID userId) {
-        BigDecimal total = BigDecimal.ZERO;
-        for (SavingsEntry entry : savingsRepository.findByUserIdAndDeletedFalseOrderByDateDesc(userId)) {
-            if (entry.getAmount() != null) {
-                total = total.add(entry.getAmount());
+    private BigDecimal monthlyRoom(UUID userId, FinanceProfile profile, BigDecimal planning) {
+        if (profile == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal budgets = BigDecimal.ZERO;
+        for (Budget budget : budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)) {
+            if (budget.getLimit() != null) {
+                budgets = budgets.add(budget.getLimit());
             }
         }
-        return total;
+        BigDecimal goals = BigDecimal.ZERO;
+        for (Goal goal : goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)) {
+            if ("active".equalsIgnoreCase(goal.getStatus()) && goal.getPlannedContribution() != null) {
+                goals = goals.add(goal.getPlannedContribution());
+            }
+        }
+        return FinancialPlan.goalContributionCapacity(planning, budgets, goals);
+    }
+
+    /**
+     * Spendable cash is unallocated liquid savings plus later general contributions.
+     * Emergency reserves, goal-linked contributions, and investments are not spendable.
+     * An "Opening" entry is ignored when current savings already records that balance.
+     */
+    private BigDecimal spendableCash(FinanceProfile profile, List<SavingsEntry> entries) {
+        BigDecimal current = profile == null ? BigDecimal.ZERO : FinancialPlan.money(profile.getCurrentSavings());
+        BigDecimal emergency = profile == null ? BigDecimal.ZERO : FinancialPlan.money(profile.getEmergencyReserve());
+        if (emergency.compareTo(current) > 0) {
+            emergency = current;
+        }
+        BigDecimal total = current.subtract(emergency);
+        for (SavingsEntry entry : entries) {
+            if (entry.getAmount() == null || entry.getGoalId() != null) {
+                continue;
+            }
+            if (FinancialPlan.emergencyCategory(entry.getCategory())) {
+                continue;
+            }
+            if (current.signum() > 0 && FinancialPlan.openingMirror(entry.getCategory())) {
+                continue;
+            }
+            total = total.add(entry.getAmount());
+        }
+        return FinancialPlan.money(total);
+    }
+
+    private List<String> buildPlan(FinanceProfile profile, BigDecimal spendable, BigDecimal planning, BigDecimal room,
+                                   BigDecimal amount, BigDecimal installment, BigDecimal totalRepayment, String suggestion) {
+        List<String> plan = new ArrayList<>();
+        BigDecimal income = profile == null ? FinancialPlan.money(null)
+                : FinancialPlan.totalMonthlyIncome(profile.getMonthlyIncome(), profile.getAdditionalIncome());
+        BigDecimal expenses = profile == null ? FinancialPlan.money(null) : FinancialPlan.money(profile.getMonthlyExpenses());
+        BigDecimal emi = profile == null ? FinancialPlan.money(null) : FinancialPlan.money(profile.getMonthlyEmi());
+        plan.add("Monthly planning capacity starts from income " + income + " minus essential expenses " + expenses
+                + ", EMI " + emi + ", and other commitments. Result: " + planning + ".");
+        plan.add("Spendable cash excludes emergency reserves, goal-linked savings, and investments. It is " + spendable + ".");
+        plan.add("Monthly room left for a new commitment after budgets and active goals is " + room + ".");
+        plan.add("The purchase amount is " + amount + ".");
+        if (installment != null) {
+            plan.add("Financed repayment is " + installment + " a month, " + totalRepayment + " in total.");
+        }
+        plan.add(suggestion);
+        return plan;
     }
 
     private AffordabilityResponse toResponse(AffordabilityCheck check) {
@@ -176,10 +286,9 @@ public class AffordabilityServiceImpl implements AffordabilityService {
         response.setLevel(check.getLevel());
         response.setPriority(check.getPriority());
         response.setDate(check.getCheckDate());
+        response.setPaymentMethod(check.getPaymentMethod());
+        response.setMonthlyInstallment(check.getMonthlyInstallment());
+        response.setTotalRepayment(check.getTotalRepayment());
         return response;
-    }
-
-    private BigDecimal money(BigDecimal amount) {
-        return amount == null ? BigDecimal.ZERO : amount;
     }
 }

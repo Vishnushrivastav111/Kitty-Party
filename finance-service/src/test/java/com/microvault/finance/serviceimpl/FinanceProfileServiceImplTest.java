@@ -87,6 +87,8 @@ class FinanceProfileServiceImplTest {
     void echoSavedEntity() {
         lenient().when(financeProfileRepository.save(any(FinanceProfile.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(goalService.list(any())).thenReturn(List.of());
+        lenient().when(budgetService.list(any())).thenReturn(List.of());
     }
 
     // ---------------------------------------------------------------- saveForUser: create / update
@@ -457,8 +459,8 @@ class FinanceProfileServiceImplTest {
         assertEquals(new BigDecimal("50000"), summary.getMonthlyIncome());
         assertEquals(new BigDecimal("20000"), summary.getMonthlyExpenses());
         assertEquals(new BigDecimal("5000"), summary.getMonthlyEmi());
-        assertEquals(new BigDecimal("30000"), summary.getMonthlySurplus());
-        assertEquals(new BigDecimal("60.00"), summary.getSavingsRatePercent());
+        assertEquals(new BigDecimal("25000.00"), summary.getMonthlySurplus());
+        assertEquals(new BigDecimal("50.00"), summary.getSavingsRatePercent());
     }
 
     @Test
@@ -468,7 +470,7 @@ class FinanceProfileServiceImplTest {
 
         MonthlySummaryResponse summary = service.summary(userId);
 
-        assertEquals(BigDecimal.ZERO, summary.getMonthlySurplus());
+        assertEquals(new BigDecimal("0.00"), summary.getMonthlySurplus());
         assertEquals(new BigDecimal("0.00"), summary.getSavingsRatePercent());
     }
 

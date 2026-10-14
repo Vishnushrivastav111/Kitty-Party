@@ -6,7 +6,10 @@ import com.microvault.finance.entity.Budget;
 import com.microvault.finance.entity.Transaction;
 import com.microvault.finance.exception.DuplicateResourceException;
 import com.microvault.finance.exception.ResourceNotFoundException;
+import com.microvault.finance.entity.FinanceProfile;
 import com.microvault.finance.repository.BudgetRepository;
+import com.microvault.finance.repository.FinanceProfileRepository;
+import com.microvault.finance.repository.GoalRepository;
 import com.microvault.finance.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,6 +46,15 @@ class BudgetServiceImplTest {
     @Mock
     private TransactionRepository transactionRepository;
 
+    @Mock
+    private FinanceProfileRepository financeProfileRepository;
+
+    @Mock
+    private GoalRepository goalRepository;
+
+    @Mock
+    private BudgetAlertService budgetAlertService;
+
     @InjectMocks
     private BudgetServiceImpl budgetService;
 
@@ -51,6 +64,15 @@ class BudgetServiceImplTest {
     @BeforeEach
     void echoSavedEntity() {
         lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        FinanceProfile profile = new FinanceProfile();
+        profile.setMonthlyIncome(new BigDecimal("1000000"));
+        profile.setMonthlyExpenses(BigDecimal.ZERO);
+        profile.setMonthlyEmi(BigDecimal.ZERO);
+        profile.setAdditionalIncome(BigDecimal.ZERO);
+        profile.setOtherCommitments(BigDecimal.ZERO);
+        lenient().when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+        lenient().when(goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)).thenReturn(List.of());
+        lenient().when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of());
     }
 
     // ---------------------------------------------------------------- create
@@ -86,8 +108,8 @@ class BudgetServiceImplTest {
         assertEquals("Food", response.getCategory());
         assertEquals(new BigDecimal("1000"), response.getLimit());
         assertEquals("monthly", response.getNote());
-        assertEquals(new BigDecimal("150"), response.getSpent());
-        assertEquals(new BigDecimal("850"), response.getRemaining());
+        assertEquals(new BigDecimal("150.00"), response.getSpent());
+        assertEquals(new BigDecimal("850.00"), response.getRemaining());
         assertEquals(new BigDecimal("15.00"), response.getUsedPercent());
         assertEquals("Within budget", response.getUsage());
     }
@@ -129,7 +151,7 @@ class BudgetServiceImplTest {
         assertEquals(new BigDecimal("2000"), existing.getLimit());
         assertEquals("new", existing.getNote());
         assertEquals("Dining", response.getCategory());
-        assertEquals(BigDecimal.ZERO, response.getSpent());
+        assertEquals(new BigDecimal("0.00"), response.getSpent());
         assertNotNull(existing.getUpdatedAt());
         verify(budgetRepository).save(existing);
     }
@@ -200,7 +222,7 @@ class BudgetServiceImplTest {
         assertEquals(4, rows.size());
         assertEquals("Within budget", rows.get(0).getUsage());
         assertEquals(new BigDecimal("79.00"), rows.get(0).getUsedPercent());
-        assertEquals(new BigDecimal("21"), rows.get(0).getRemaining());
+        assertEquals(new BigDecimal("21.00"), rows.get(0).getRemaining());
         assertEquals("Close to limit", rows.get(1).getUsage());
         assertEquals("Close to limit", rows.get(2).getUsage());
         assertEquals(new BigDecimal("100.00"), rows.get(2).getUsedPercent());
@@ -222,12 +244,12 @@ class BudgetServiceImplTest {
         List<BudgetResponse> rows = budgetService.list(userId);
 
         assertEquals(BigDecimal.ZERO, rows.get(0).getLimit());
-        assertEquals(new BigDecimal("40"), rows.get(0).getSpent());
+        assertEquals(new BigDecimal("40.00"), rows.get(0).getSpent());
         assertEquals(BigDecimal.ZERO, rows.get(0).getUsedPercent());
         assertEquals(BigDecimal.ZERO, rows.get(0).getRemaining());
         assertEquals("Within budget", rows.get(0).getUsage());
-        assertEquals(BigDecimal.ZERO, rows.get(1).getSpent());
-        assertEquals(new BigDecimal("100"), rows.get(1).getRemaining());
+        assertEquals(new BigDecimal("0.00"), rows.get(1).getSpent());
+        assertEquals(new BigDecimal("100.00"), rows.get(1).getRemaining());
     }
 
     @Test
@@ -306,6 +328,7 @@ class BudgetServiceImplTest {
         transaction.setType(type);
         transaction.setCategory(category);
         transaction.setAmount(amount == null ? null : new BigDecimal(amount));
+        transaction.setDate(LocalDate.now());
         return transaction;
     }
 }

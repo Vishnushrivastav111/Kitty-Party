@@ -62,8 +62,9 @@ class DashboardServiceImplTest {
 
     @Test
     void combinesTheUserFinanceAndAdminWorkspaces() throws Exception {
+        String month = java.time.YearMonth.now() + "-03";
         String finance = "{\"finance\":{\"monthlyIncome\":50000,\"monthlyExpenses\":20000,\"monthlyBudget\":15000},"
-                + "\"transactions\":[{\"type\":\"expense\",\"amount\":300},{\"type\":\"income\",\"amount\":900}],"
+                + "\"transactions\":[{\"type\":\"expense\",\"amount\":300,\"date\":\"" + month + "\"},{\"type\":\"income\",\"amount\":900,\"date\":\"" + month + "\"}],"
                 + "\"goals\":[{\"status\":\"active\"}],"
                 + "\"savings\":[{\"amount\":1000},{\"amount\":250.50}],"
                 + "\"budgets\":[{\"limit\":10}],"
@@ -102,8 +103,8 @@ class DashboardServiceImplTest {
         assertEquals(0, new BigDecimal("50000").compareTo(stats.getIncome()));
         assertEquals(0, new BigDecimal("20000").compareTo(stats.getExpenses()));
         assertEquals(1, stats.getActiveGoals());
-        // 40 + (30000 / 50000) * 60 = 76, +10 because the member has savings
-        assertEquals(86, stats.getHealth());
+        // Savings rate is the share of income left after essential expenses, EMI, and other commitments.
+        assertEquals(60, stats.getHealth());
     }
 
     @Test
@@ -143,9 +144,9 @@ class DashboardServiceImplTest {
             assertEquals(0, section.size());
         }
         DashboardStats stats = response.getStats();
-        assertEquals(50, stats.getHealth());
+        assertEquals(0, stats.getHealth());
         assertEquals(0, BigDecimal.ZERO.compareTo(stats.getTotalSavings()));
-        assertEquals(0, new BigDecimal("30000").compareTo(stats.getMonthBudget()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(stats.getMonthBudget()));
         assertEquals(0, BigDecimal.ZERO.compareTo(stats.getSpent()));
         assertEquals(0, BigDecimal.ZERO.compareTo(stats.getIncome()));
         assertEquals(0, BigDecimal.ZERO.compareTo(stats.getExpenses()));
@@ -165,7 +166,7 @@ class DashboardServiceImplTest {
         assertEquals(0, response.getTransactions().size());
         assertEquals(0, response.getNotifications().size());
         assertFalse(response.isSetupSkipped());
-        assertEquals(50, response.getStats().getHealth());
+        assertEquals(0, response.getStats().getHealth());
     }
 
     @Test
@@ -180,8 +181,9 @@ class DashboardServiceImplTest {
 
     @Test
     void expensesFallBackToTheTransactionTotalWhenTheProfileHasNone() throws Exception {
+        String month = java.time.YearMonth.now() + "-01";
         String finance = "{\"finance\":{\"monthlyIncome\":1000,\"monthlyExpenses\":0,\"monthlyBudget\":0},"
-                + "\"transactions\":[{\"type\":\"EXPENSE\",\"amount\":200},{\"type\":\"Expense\",\"amount\":100},"
+                + "\"transactions\":[{\"type\":\"EXPENSE\",\"amount\":200,\"date\":\"" + month + "\"},{\"type\":\"Expense\",\"amount\":100,\"date\":\"" + month + "\"},"
                 + "{\"type\":\"income\",\"amount\":999},{\"amount\":50}],"
                 + "\"budgets\":[{\"limit\":400},{\"limit\":600},{\"name\":\"no limit\"}]}";
 
@@ -191,21 +193,22 @@ class DashboardServiceImplTest {
         assertEquals(0, new BigDecimal("300").compareTo(stats.getExpenses()));
         // no profile budget, so the budgets are summed
         assertEquals(0, new BigDecimal("1000").compareTo(stats.getMonthBudget()));
-        // 40 + (700 / 1000) * 60 = 82, no savings bonus
-        assertEquals(82, stats.getHealth());
+        // (1000 - 300) / 1000 = 70
+        assertEquals(70, stats.getHealth());
     }
 
     @Test
     void profileMissingExpensesFallBackToTheTransactionTotal() throws Exception {
+        String month = java.time.YearMonth.now() + "-02";
         String finance = "{\"finance\":{\"monthlyIncome\":1000,\"monthlyBudget\":500},"
-                + "\"transactions\":[{\"type\":\"expense\",\"amount\":250}]}";
+                + "\"transactions\":[{\"type\":\"expense\",\"amount\":250,\"date\":\"" + month + "\"}]}";
 
         DashboardStats stats = load(USER_JSON, finance, "{}").getStats();
 
         assertEquals(0, new BigDecimal("250").compareTo(stats.getExpenses()));
         assertEquals(0, new BigDecimal("500").compareTo(stats.getMonthBudget()));
-        // 40 + (750 / 1000) * 60 = 85
-        assertEquals(85, stats.getHealth());
+        // (1000 - 250) / 1000 = 75
+        assertEquals(75, stats.getHealth());
     }
 
     @Test
@@ -214,7 +217,7 @@ class DashboardServiceImplTest {
 
         DashboardStats stats = load(USER_JSON, finance, "{}").getStats();
 
-        assertEquals(40, stats.getHealth());
+        assertEquals(0, stats.getHealth());
     }
 
     @Test
@@ -238,7 +241,7 @@ class DashboardServiceImplTest {
     void zeroIncomeKeepsTheNeutralHealthScore() throws Exception {
         String finance = "{\"finance\":{\"monthlyIncome\":0,\"monthlyExpenses\":100,\"monthlyBudget\":100}}";
 
-        assertEquals(50, load(USER_JSON, finance, "{}").getStats().getHealth());
+        assertEquals(0, load(USER_JSON, finance, "{}").getStats().getHealth());
     }
 
     @Test
@@ -246,7 +249,7 @@ class DashboardServiceImplTest {
         String finance = "{\"goals\":[{\"status\":\"completed\"},{\"status\":\"COMPLETED\"},"
                 + "{\"status\":\"active\"},{}]}";
 
-        assertEquals(2, load(USER_JSON, finance, "{}").getStats().getActiveGoals());
+        assertEquals(1, load(USER_JSON, finance, "{}").getStats().getActiveGoals());
     }
 
     @Test
@@ -261,7 +264,7 @@ class DashboardServiceImplTest {
         DashboardStats stats = response.getStats();
         assertEquals(0, BigDecimal.ZERO.compareTo(stats.getTotalSavings()));
         assertEquals(0, BigDecimal.ZERO.compareTo(stats.getSpent()));
-        assertEquals(0, new BigDecimal("30000").compareTo(stats.getMonthBudget()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(stats.getMonthBudget()));
         assertEquals(0, stats.getActiveGoals());
     }
 
@@ -274,7 +277,7 @@ class DashboardServiceImplTest {
 
         assertEquals(0, new BigDecimal("40").compareTo(stats.getTotalSavings()));
         assertEquals(0, BigDecimal.ZERO.compareTo(stats.getIncome()));
-        assertEquals(50, stats.getHealth());
+        assertEquals(0, stats.getHealth());
     }
 
     @Test

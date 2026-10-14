@@ -24,6 +24,9 @@ public class AffordabilityRequest {
     private LocalDate checkDate;
 
     private String priority;
+    private String paymentMethod;
+    private Integer emiMonths;
+    private BigDecimal annualInterestPercent;
 
     public String getItemName() { return itemName; }
     public void setItemName(String itemName) { this.itemName = itemName; }
@@ -33,4 +36,10 @@ public class AffordabilityRequest {
     public void setCheckDate(LocalDate checkDate) { this.checkDate = checkDate; }
     public String getPriority() { return priority; }
     public void setPriority(String priority) { this.priority = priority; }
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+    public Integer getEmiMonths() { return emiMonths; }
+    public void setEmiMonths(Integer emiMonths) { this.emiMonths = emiMonths; }
+    public BigDecimal getAnnualInterestPercent() { return annualInterestPercent; }
+    public void setAnnualInterestPercent(BigDecimal annualInterestPercent) { this.annualInterestPercent = annualInterestPercent; }
 }

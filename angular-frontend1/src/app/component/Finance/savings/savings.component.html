@@ -54,8 +54,12 @@
           <div class="form-grid">
             <div class="form-group"><label for="savingTitle">Title</label><input id="savingTitle" name="title" [(ngModel)]="form.title" placeholder="e.g. Monthly deposit" (ngModelChange)="touch('title', titleOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['title'] ? 'block' : 'none'">{{ errors()['title'] }}</span></div>
             <div class="form-group"><label for="savingCategory">Category</label>
-              <select id="savingCategory" name="category" [(ngModel)]="form.category" (ngModelChange)="touch('category', $event ? '' : 'Category is required')"><option value="">Select</option>@for (item of categories; track item) { <option [value]="item">{{ item }}</option> }</select>
+              <select id="savingCategory" name="category" [(ngModel)]="form.category" (ngModelChange)="touch('category', $event ? '' : 'Category is required')"><option value="">Select a category</option>@for (item of categories; track item) { <option [value]="item">{{ item }}</option> }<option value="Emergency">Emergency reserve</option><option value="General">General savings</option></select>
               <span class="field-error" [style.display]="errors()['category'] ? 'block' : 'none'">{{ errors()['category'] }}</span>
+            </div>
+            <div class="form-group"><label for="savingGoal">Goal</label>
+              <select id="savingGoal" name="goalId" [(ngModel)]="form.goalId"><option value="">No goal — general savings</option>@for (goal of vault.goals(); track goal.id) { @if (goal.status !== 'archived') { <option [value]="goal.id">{{ goal.title }}</option> } }</select>
+              <p class="subtitle">Leave this empty to record savings that are not assigned to a goal.</p>
             </div>
             <div class="form-group"><label for="savingAmount">Amount (₹)</label><input id="savingAmount" type="number" name="amount" min="1" [(ngModel)]="form.amount" placeholder="e.g. 5000" (ngModelChange)="touch('amount', amountOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['amount'] ? 'block' : 'none'">{{ errors()['amount'] }}</span></div>
             <div class="form-group"><label for="savingDate">Date</label><input id="savingDate" type="date" name="date" [(ngModel)]="form.date" [max]="today" (ngModelChange)="touch('date', dateOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['date'] ? 'block' : 'none'">{{ errors()['date'] }}</span></div>

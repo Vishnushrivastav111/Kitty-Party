@@ -19,6 +19,12 @@ public class AffordabilityResponse {
     private LocalDate date;
     private String suggestion;
     private List<String> plan = new ArrayList<>();
+    private BigDecimal shortfall;
+    private Integer monthsToSave;
+    private BigDecimal monthlyInstallment;
+    private BigDecimal totalRepayment;
+    private String paymentMethod;
+    private boolean canCreateGoal;
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
@@ -42,4 +48,16 @@ public class AffordabilityResponse {
     public void setSuggestion(String suggestion) { this.suggestion = suggestion; }
     public List<String> getPlan() { return plan; }
     public void setPlan(List<String> plan) { this.plan = plan; }
+    public BigDecimal getShortfall() { return shortfall; }
+    public void setShortfall(BigDecimal shortfall) { this.shortfall = shortfall; }
+    public Integer getMonthsToSave() { return monthsToSave; }
+    public void setMonthsToSave(Integer monthsToSave) { this.monthsToSave = monthsToSave; }
+    public BigDecimal getMonthlyInstallment() { return monthlyInstallment; }
+    public void setMonthlyInstallment(BigDecimal monthlyInstallment) { this.monthlyInstallment = monthlyInstallment; }
+    public BigDecimal getTotalRepayment() { return totalRepayment; }
+    public void setTotalRepayment(BigDecimal totalRepayment) { this.totalRepayment = totalRepayment; }
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+    public boolean isCanCreateGoal() { return canCreateGoal; }
+    public void setCanCreateGoal(boolean canCreateGoal) { this.canCreateGoal = canCreateGoal; }
 }

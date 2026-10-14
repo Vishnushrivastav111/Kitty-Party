@@ -5,11 +5,12 @@ import { AuthService } from '../../../service/auth.service';
 import { assignError, assignErrors, confirmError, mergeApiFields } from '../../../shared/field-state';
 import { joinFullName, personName } from '../../../shared/finance-rules';
 import { Validators } from '../../../shared/format';
+import { SiteFooterComponent } from '../../../shared/site-footer.component';
 
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, SiteFooterComponent],
   templateUrl: './register.component.html',
   styleUrl: './register.component.scss',
 })
@@ -30,6 +31,7 @@ export class RegisterComponent {
   readonly busy = signal(false);
   readonly errors = signal<Record<string, string>>({});
   readonly formError = signal('');
+  readonly created = signal(false);
 
   onFirst(value: string): void {
     this.firstName = value;
@@ -99,8 +101,10 @@ export class RegisterComponent {
     if (!result.ok) {
       this.formError.set(result.message || 'The server did not complete registration.');
       this.errors.set(mergeApiFields(errors, result.fieldErrors));
+      this.created.set(false);
       return;
     }
-    await this.router.navigateByUrl('/login');
+    this.formError.set('');
+    this.created.set(true);
   }
 }

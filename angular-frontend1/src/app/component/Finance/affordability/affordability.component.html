@@ -12,9 +12,14 @@
       <form (ngSubmit)="check()" novalidate>
         @if (formError()) { <p class="field-error" role="alert">{{ formError() }}</p> }
         <div class="form-grid">
-          <div class="form-group"><label for="itemName">Item / purchase name</label><input id="itemName" name="itemName" [(ngModel)]="itemName" placeholder="e.g. Laptop" (ngModelChange)="touch('itemName', itemOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['itemName'] ? 'block' : 'none'">{{ errors()['itemName'] }}</span></div>
-          <div class="form-group"><label for="affordAmount">Estimated cost (₹)</label><input id="affordAmount" type="number" name="amount" min="1" [(ngModel)]="amount" placeholder="e.g. 45000" (ngModelChange)="touch('amount', amountOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['amount'] ? 'block' : 'none'">{{ errors()['amount'] }}</span></div>
+          <div class="form-group"><label for="itemName">Purchase name</label><input id="itemName" name="itemName" [(ngModel)]="itemName" placeholder="e.g., Laptop, phone, or furniture" (ngModelChange)="touch('itemName', itemOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['itemName'] ? 'block' : 'none'">{{ errors()['itemName'] }}</span></div>
+          <div class="form-group"><label for="affordAmount">Purchase amount (₹)</label><input id="affordAmount" type="number" name="amount" min="1" [(ngModel)]="amount" placeholder="Enter purchase amount in ₹" (ngModelChange)="touch('amount', amountOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['amount'] ? 'block' : 'none'">{{ errors()['amount'] }}</span></div>
           <div class="form-group"><label for="checkDate">Check date</label><input id="checkDate" type="date" name="checkDate" [(ngModel)]="checkDate" [max]="today" (ngModelChange)="touch('checkDate', dateOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['checkDate'] ? 'block' : 'none'">{{ errors()['checkDate'] }}</span></div>
+          <div class="form-group"><label for="paymentMethod">Payment method</label><select id="paymentMethod" name="paymentMethod" [(ngModel)]="paymentMethod"><option value="cash">Cash</option><option value="emi">EMI</option></select></div>
+          @if (paymentMethod === 'emi') {
+            <div class="form-group"><label for="emiMonths">EMI months</label><input id="emiMonths" type="number" name="emiMonths" min="1" [(ngModel)]="emiMonths" placeholder="Enter number of months" /></div>
+            <div class="form-group"><label for="annualRate">Annual interest % (optional)</label><input id="annualRate" type="number" name="annualInterestPercent" min="0" [(ngModel)]="annualInterestPercent" placeholder="Enter annual interest, or 0" /></div>
+          }
           <div class="form-group"><label>Priority</label><select name="priority" [(ngModel)]="priority"><option>Need</option><option>Want</option><option>Investment</option></select></div>
         </div>
         <div class="form-actions"><button class="btn btn-primary" [disabled]="busy()"><i class="fas fa-calculator"></i> Check affordability</button></div>
@@ -25,9 +30,12 @@
         } @else {
         <div class="alert-box" [class.success]="row.level === 'success'" [class.warning]="row.level === 'warning'" [class.danger]="row.level === 'danger'" style="margin-top:16px">
           <strong>{{ row.verdict }}</strong><br />
-          {{ row.itemName }} · {{ money(row.amount) }} · server capacity {{ money(row.available || row.availableAmount) }}
-          <p>This capacity comes from the affordability API. It is monthly surplus plus 30% of savings entries. It is not total savings ({{ money(vault.position().totalSavings) }}). The API has no emergency fund, so this page does not subtract a reserve and does not subtract one twice.</p>
+          {{ row.itemName }} · {{ money(row.amount) }} · spendable cash {{ money(row.available || row.availableAmount) }}
+          <p>This check does not create an expense or move money. Emergency reserves, goal savings, and investments are not treated as free to spend.</p>
           @if (row.suggestion) { <div>{{ row.suggestion }}</div> }
+          @if (row.level !== 'success') {
+            <div class="form-actions"><button type="button" class="btn btn-primary btn-sm" (click)="createGoal()">Create a savings goal</button></div>
+          }
         </div>
         }
       }

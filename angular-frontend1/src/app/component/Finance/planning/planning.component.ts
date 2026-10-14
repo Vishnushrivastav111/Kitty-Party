@@ -51,6 +51,12 @@ export class PlanningComponent implements OnInit {
     }
   }
 
+  insights(): string[] {
+    const row = this.summary();
+    const notes = row?.['insights'];
+    return Array.isArray(notes) ? notes.map((item) => String(item)) : [];
+  }
+
   surplus(): number | null {
     const row = this.summary();
     if (!row || row['monthlySurplus'] == null) return null;

@@ -12,13 +12,15 @@
           <select name="incomeSource" [(ngModel)]="incomeSource" (ngModelChange)="touch('incomeSource', choiceOk($event))"><option value="">Select income source</option><option>Salary</option><option>Business</option><option>Freelance</option><option>Investments</option><option>Other</option></select>
           <span class="field-error" [style.display]="errors()['incomeSource'] ? 'block' : 'none'">{{ errors()['incomeSource'] }}</span>
         </div>
-        <div class="form-group"><label for="monthlyIncome">Monthly Income (₹)</label><input id="monthlyIncome" type="number" name="monthlyIncome" min="0" [(ngModel)]="monthlyIncome" placeholder="e.g. 75000" (ngModelChange)="touch('monthlyIncome', incomeOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['monthlyIncome'] ? 'block' : 'none'">{{ errors()['monthlyIncome'] }}</span></div>
+        <div class="form-group"><label for="monthlyIncome">Monthly take-home income (₹)</label><input id="monthlyIncome" type="number" name="monthlyIncome" min="0" [(ngModel)]="monthlyIncome" placeholder="Enter take-home income in ₹" (ngModelChange)="touch('monthlyIncome', incomeOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['monthlyIncome'] ? 'block' : 'none'">{{ errors()['monthlyIncome'] }}</span></div>
+        <div class="form-group"><label for="additionalIncome">Other recurring income (₹)</label><input id="additionalIncome" type="number" name="additionalIncome" min="0" [(ngModel)]="additionalIncome" placeholder="Enter other monthly income, or 0" /><p class="subtitle">Added to take-home pay. Do not repeat salary here. Savings and investments are not income.</p></div>
         <div class="form-group"><label>Pay Cycle</label>
           <select name="payCycle" [(ngModel)]="payCycle" (ngModelChange)="touch('payCycle', choiceOk($event))"><option value="">Select pay cycle</option><option>Monthly</option><option>Bi-weekly</option><option>Weekly</option><option>Irregular</option></select>
           <span class="field-error" [style.display]="errors()['payCycle'] ? 'block' : 'none'">{{ errors()['payCycle'] }}</span>
         </div>
         <h3>2. Monthly Expenses</h3>
-        <div class="form-group"><label for="monthlyExpenses">Total Monthly Expenses (₹)</label><input id="monthlyExpenses" type="number" name="monthlyExpenses" min="0" [(ngModel)]="monthlyExpenses" placeholder="e.g. 32000" (ngModelChange)="touch('monthlyExpenses', expenseOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['monthlyExpenses'] ? 'block' : 'none'">{{ errors()['monthlyExpenses'] }}</span></div>
+        <div class="form-group"><label for="monthlyExpenses">Essential recurring expenses (₹)</label><input id="monthlyExpenses" type="number" name="monthlyExpenses" min="0" [(ngModel)]="monthlyExpenses" placeholder="Enter essential monthly expenses in ₹" (ngModelChange)="touch('monthlyExpenses', expenseOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['monthlyExpenses'] ? 'block' : 'none'">{{ errors()['monthlyExpenses'] }}</span><p class="subtitle">An estimate of rent, food, utilities, and other essentials. Later expense transactions are not added to this figure again.</p></div>
+        <div class="form-group"><label for="otherCommitments">Other required monthly commitments (₹)</label><input id="otherCommitments" type="number" name="otherCommitments" min="0" [(ngModel)]="otherCommitments" placeholder="Enter other commitments, or 0" /></div>
         <label>Expense Categories (select all that apply)</label>
         <div class="check-row">
           @for (item of expenseOptions; track item) {
@@ -49,7 +51,8 @@
           }
         }
         <h3>4. Savings &amp; Investments</h3>
-        <div class="form-group"><label for="currentSavings">Current Savings (₹)</label><input id="currentSavings" type="number" name="currentSavings" min="0" [(ngModel)]="currentSavings" placeholder="e.g. 120000" (ngModelChange)="touch('currentSavings', savingsOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['currentSavings'] ? 'block' : 'none'">{{ errors()['currentSavings'] }}</span></div>
+        <div class="form-group"><label for="currentSavings">Liquid savings already held (₹)</label><input id="currentSavings" type="number" name="currentSavings" min="0" [(ngModel)]="currentSavings" placeholder="Enter liquid savings in ₹" (ngModelChange)="touch('currentSavings', savingsOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['currentSavings'] ? 'block' : 'none'">{{ errors()['currentSavings'] }}</span><p class="subtitle">A balance, not monthly income. Later savings entries are new contributions and are not a second copy of this amount.</p></div>
+        <div class="form-group"><label for="emergencyReserve">Emergency reserve inside those savings (₹)</label><input id="emergencyReserve" type="number" name="emergencyReserve" min="0" [(ngModel)]="emergencyReserve" placeholder="Enter the protected reserve, or 0" /></div>
         <div class="form-group"><label for="savingsType">Primary Savings Type</label>
           <select id="savingsType" name="savingsType" [(ngModel)]="savingsType" (ngModelChange)="touch('savingsType', choiceOk($event))"><option value="">Select</option><option>Bank Savings</option><option>Fixed Deposit</option><option>Recurring Deposit</option><option>Cash</option><option>Other</option></select>
           <span class="field-error" [style.display]="errors()['savingsType'] ? 'block' : 'none'">{{ errors()['savingsType'] }}</span>
@@ -98,11 +101,12 @@
         }
         <div class="form-group"><label for="setupDate">Profile As-of Date</label><input id="setupDate" type="date" name="setupDate" [(ngModel)]="setupDate" [max]="today" (ngModelChange)="touch('setupDate', setupDateOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['setupDate'] ? 'block' : 'none'">{{ errors()['setupDate'] }}</span></div>
         <div class="summary-box">
-          <div><span>Surplus preview</span><strong>{{ money(surplus()) }}</strong></div>
-          <div><span>Income</span><strong>{{ money(monthlyIncome) }}</strong></div>
-          <div><span>Expenses</span><strong>{{ money(monthlyExpenses) }}</strong></div>
-          <div><span>EMI, not included in surplus</span><strong>{{ hasEmi === 'yes' ? money(loansEmi) : money(0) }}</strong></div>
+          <div><span>Planning capacity</span><strong>{{ money(capacity()) }}</strong></div>
+          <div><span>Take-home plus other income</span><strong>{{ money(num(monthlyIncome) + num(additionalIncome)) }}</strong></div>
+          <div><span>Essential expenses</span><strong>{{ money(monthlyExpenses) }}</strong></div>
+          <div><span>EMI and other commitments</span><strong>{{ money((hasEmi === 'yes' ? num(loansEmi) : 0) + num(otherCommitments)) }}</strong></div>
         </div>
+        <p class="subtitle">Planning capacity is recurring income minus essential expenses, EMI, and other commitments. It is the monthly room for budgets and new goal contributions. A negative number means commitments already exceed income.</p>
         <label class="check-row"><input type="checkbox" name="confirm" [(ngModel)]="confirmAccurate" (ngModelChange)="touch('confirm', $event ? '' : 'Please confirm accuracy')" /> I confirm the financial information above is accurate</label>
         <span class="field-error" [style.display]="errors()['confirm'] ? 'block' : 'none'">{{ errors()['confirm'] }}</span>
         <button class="btn" [disabled]="busy()">Save &amp; Continue to Dashboard</button>

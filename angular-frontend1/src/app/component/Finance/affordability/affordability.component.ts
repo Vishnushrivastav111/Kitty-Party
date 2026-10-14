@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { parseApiError } from '../../../shared/api-error';
 import { DialogService } from '../../../shared/dialog.service';
 import { assignError } from '../../../shared/field-state';
@@ -18,6 +19,10 @@ import { PagerComponent } from '../../../shared/pager.component';
 export class AffordabilityComponent {
   readonly vault = inject(FinanceService);
   private readonly dialog = inject(DialogService);
+  private readonly router = inject(Router);
+  paymentMethod = 'cash';
+  emiMonths: number | null = null;
+  annualInterestPercent: number | null = 0;
   readonly today = todayISO();
   readonly money = formatINR;
   readonly date = formatDate;
@@ -46,7 +51,15 @@ export class AffordabilityComponent {
     if (Object.values(errors).some(Boolean)) return;
     this.busy.set(true);
     try {
-      const row = await this.vault.checkAfford({ itemName: this.itemName.trim(), amount: Number(this.amount), checkDate: this.checkDate, priority: this.priority });
+      const row = await this.vault.checkAfford({
+        itemName: this.itemName.trim(),
+        amount: Number(this.amount),
+        checkDate: this.checkDate,
+        priority: this.priority,
+        paymentMethod: this.paymentMethod,
+        emiMonths: this.paymentMethod === 'emi' ? Number(this.emiMonths) : null,
+        annualInterestPercent: this.paymentMethod === 'emi' ? Number(this.annualInterestPercent) || 0 : null,
+      });
       this.result.set(row);
       this.recheckHint.set('');
     } catch (error) {
@@ -72,6 +85,11 @@ export class AffordabilityComponent {
   }
   async remove(row: AffordCheck): Promise<void> {
     if (await this.dialog.confirm('Are you sure you want to delete this check?')) await this.vault.deleteAfford(row.id);
+  }
+  async createGoal(): Promise<void> {
+    const row = this.result();
+    if (!row || row.level === 'success') return;
+    await this.router.navigate(['/goals'], { queryParams: { title: row.itemName, amount: row.amount } });
   }
   async clearAll(): Promise<void> {
     if (await this.dialog.confirm('Delete every affordability check?')) await this.vault.clearAfford();

@@ -5,7 +5,13 @@ import com.microvault.finance.dto.GoalResponse;
 import com.microvault.finance.entity.Goal;
 import com.microvault.finance.exception.ResourceNotFoundException;
 import com.microvault.finance.exception.ValidationException;
+import com.microvault.finance.entity.FinanceProfile;
+import com.microvault.finance.repository.BudgetRepository;
+import com.microvault.finance.repository.FinanceProfileRepository;
 import com.microvault.finance.repository.GoalRepository;
+import com.microvault.finance.repository.SavingsRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +44,21 @@ class GoalServiceImplTest {
     @Mock
     private GoalRepository goalRepository;
 
+    @Mock
+    private SavingsRepository savingsRepository;
+
+    @Mock
+    private FinanceProfileRepository financeProfileRepository;
+
+    @Mock
+    private BudgetRepository budgetRepository;
+
+    @Mock
+    private EntityManager entityManager;
+
+    @Mock
+    private Query query;
+
     @InjectMocks
     private GoalServiceImpl goalService;
 
@@ -47,6 +68,21 @@ class GoalServiceImplTest {
     @BeforeEach
     void echoSavedEntity() {
         lenient().when(goalRepository.save(any(Goal.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        FinanceProfile profile = new FinanceProfile();
+        profile.setMonthlyIncome(new BigDecimal("100000"));
+        profile.setMonthlyExpenses(BigDecimal.ZERO);
+        profile.setMonthlyEmi(BigDecimal.ZERO);
+        profile.setAdditionalIncome(BigDecimal.ZERO);
+        profile.setOtherCommitments(BigDecimal.ZERO);
+        profile.setCurrentSavings(new BigDecimal("100000"));
+        profile.setEmergencyReserve(BigDecimal.ZERO);
+        lenient().when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+        lenient().when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of());
+        lenient().when(savingsRepository.findByUserIdAndDeletedFalseOrderByDateDesc(userId)).thenReturn(List.of());
+        lenient().when(goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)).thenReturn(List.of());
+        lenient().when(entityManager.createNativeQuery(any(String.class))).thenReturn(query);
+        lenient().when(query.setParameter(any(Integer.class), any())).thenReturn(query);
+        lenient().when(query.getSingleResult()).thenReturn(1);
     }
 
     // ---------------------------------------------------------------- create
@@ -87,7 +123,9 @@ class GoalServiceImplTest {
 
     @Test
     void createWithNullSavedDefaultsToZero() {
-        GoalResponse response = goalService.create(userId, request("Trip", "500", null, null));
+        GoalRequest request = request("Trip", "500", null, null);
+        request.setDeadline(LocalDate.now().plusMonths(6));
+        GoalResponse response = goalService.create(userId, request);
 
         assertEquals(BigDecimal.ZERO, response.getSaved());
         assertEquals(new BigDecimal("0.00"), response.getProgressPercent());
@@ -110,14 +148,18 @@ class GoalServiceImplTest {
 
     @Test
     void createNormalisesUppercaseActiveStatus() {
-        assertEquals("active", goalService.create(userId, request("Trip", "500", "10", "ACTIVE")).getStatus());
+        GoalRequest request = request("Trip", "500", "10", "ACTIVE");
+        request.setDeadline(LocalDate.now().plusMonths(8));
+        assertEquals("active", goalService.create(userId, request).getStatus());
     }
 
     @Test
-    void createFallsBackToActiveForUnknownStatus() {
-        assertEquals("active", goalService.create(userId, request("Trip", "500", "10", "completed")).getStatus());
-        assertEquals("active", goalService.create(userId, request("Trip", "500", "10", "whatever")).getStatus());
-        assertEquals("active", goalService.create(userId, request("Trip", "500", "10", "")).getStatus());
+    void createKeepsExplicitStatusesAndDraftsUnknownOnes() {
+        assertEquals("completed", goalService.create(userId, request("Trip", "500", "10", "completed")).getStatus());
+        assertEquals("draft", goalService.create(userId, request("Trip", "500", "10", "whatever")).getStatus());
+        GoalRequest open = request("Trip", "500", "10", "");
+        open.setDeadline(LocalDate.now().plusMonths(4));
+        assertEquals("active", goalService.create(userId, open).getStatus());
     }
 
     @Test
@@ -144,6 +186,7 @@ class GoalServiceImplTest {
         when(goalRepository.save(any(Goal.class))).thenThrow(new IllegalStateException("db down"));
 
         GoalRequest request = request("Trip", "500", "1", "active");
+        request.setDeadline(LocalDate.now().plusMonths(6));
         assertThrows(IllegalStateException.class, () -> goalService.create(userId, request));
     }
 
@@ -215,7 +258,7 @@ class GoalServiceImplTest {
         GoalResponse response = goalService.list(userId).get(0);
 
         assertEquals(new BigDecimal("100.00"), response.getProgressPercent());
-        assertEquals(BigDecimal.ZERO, response.getRemaining());
+        assertEquals(new BigDecimal("0.00"), response.getRemaining());
     }
 
     @Test
@@ -232,8 +275,8 @@ class GoalServiceImplTest {
         assertEquals(new BigDecimal("0.00"), rows.get(0).getProgressPercent());
         assertEquals(new BigDecimal("100"), rows.get(0).getRemaining());
         assertEquals(BigDecimal.ZERO, rows.get(1).getTarget());
-        assertEquals(BigDecimal.ZERO, rows.get(1).getProgressPercent());
-        assertEquals(BigDecimal.ZERO, rows.get(1).getRemaining());
+        assertEquals(new BigDecimal("0.00"), rows.get(1).getProgressPercent());
+        assertEquals(new BigDecimal("0.00"), rows.get(1).getRemaining());
     }
 
     @Test

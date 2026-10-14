@@ -68,7 +68,14 @@ public class AdminServiceImpl implements AdminService {
     @Transactional(readOnly = true)
     public List<NotificationResponse> notifications(UUID userId) {
         List<NotificationResponse> rows = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
         for (Notification notification : notificationRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)) {
+            if (notification.isDismissed()) {
+                continue;
+            }
+            if (notification.getExpiresAt() != null && !notification.getExpiresAt().isAfter(now)) {
+                continue;
+            }
             rows.add(toNotification(notification));
         }
         return rows;
@@ -79,6 +86,9 @@ public class AdminServiceImpl implements AdminService {
         Notification notification = notificationRepository.findByIdAndUserIdAndDeletedFalse(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
         notification.setRead(true);
+        if (notification.getReadAt() == null) {
+            notification.setReadAt(LocalDateTime.now());
+        }
         notification.setUpdatedAt(LocalDateTime.now());
         notificationRepository.save(notification);
     }
@@ -86,9 +96,12 @@ public class AdminServiceImpl implements AdminService {
     @Override
     public void markAllRead(UUID userId) {
         for (Notification notification : notificationRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)) {
-            notification.setRead(true);
-            notification.setUpdatedAt(LocalDateTime.now());
-            notificationRepository.save(notification);
+            if (!notification.isRead()) {
+                notification.setRead(true);
+                notification.setReadAt(LocalDateTime.now());
+                notification.setUpdatedAt(LocalDateTime.now());
+                notificationRepository.save(notification);
+            }
         }
     }
 
@@ -427,6 +440,7 @@ public class AdminServiceImpl implements AdminService {
     private void markDeleted(Notification notification) {
         LocalDateTime now = LocalDateTime.now();
         notification.setDeleted(true);
+        notification.setDismissed(true);
         notification.setDeletedAt(now);
         notification.setUpdatedAt(now);
     }

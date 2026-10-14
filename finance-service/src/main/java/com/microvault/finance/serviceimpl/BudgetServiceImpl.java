@@ -3,17 +3,26 @@ package com.microvault.finance.serviceimpl;
 import com.microvault.finance.dto.BudgetRequest;
 import com.microvault.finance.dto.BudgetResponse;
 import com.microvault.finance.entity.Budget;
+import com.microvault.finance.entity.FinanceProfile;
+import com.microvault.finance.entity.Goal;
 import com.microvault.finance.entity.Transaction;
 import com.microvault.finance.exception.DuplicateResourceException;
 import com.microvault.finance.exception.ResourceNotFoundException;
+import com.microvault.finance.exception.ValidationException;
 import com.microvault.finance.repository.BudgetRepository;
+import com.microvault.finance.repository.FinanceProfileRepository;
+import com.microvault.finance.repository.GoalRepository;
 import com.microvault.finance.repository.TransactionRepository;
 import com.microvault.finance.service.BudgetService;
+import com.microvault.finance.service.FinancialPlan;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,22 +32,36 @@ import java.util.UUID;
 @Transactional
 public class BudgetServiceImpl implements BudgetService {
 
+    private static final Logger log = LoggerFactory.getLogger(BudgetServiceImpl.class);
+
     private final BudgetRepository budgetRepository;
     private final TransactionRepository transactionRepository;
+    private final FinanceProfileRepository financeProfileRepository;
+    private final GoalRepository goalRepository;
+    private final BudgetAlertService budgetAlertService;
 
-    public BudgetServiceImpl(BudgetRepository budgetRepository, TransactionRepository transactionRepository) {
+    public BudgetServiceImpl(BudgetRepository budgetRepository,
+                             TransactionRepository transactionRepository,
+                             FinanceProfileRepository financeProfileRepository,
+                             GoalRepository goalRepository,
+                             BudgetAlertService budgetAlertService) {
         this.budgetRepository = budgetRepository;
         this.transactionRepository = transactionRepository;
+        this.financeProfileRepository = financeProfileRepository;
+        this.goalRepository = goalRepository;
+        this.budgetAlertService = budgetAlertService;
     }
 
     @Override
     public BudgetResponse create(UUID userId, BudgetRequest request) {
+        String category = request.getCategory().trim();
         Budget existing = budgetRepository
-                .findByUserIdAndCategoryIgnoreCaseAndDeletedFalse(userId, request.getCategory().trim())
+                .findByUserIdAndCategoryIgnoreCaseAndDeletedFalse(userId, category)
                 .orElse(null);
         if (existing != null) {
             throw new DuplicateResourceException("A budget already exists for " + request.getCategory());
         }
+        enforceCapacity(userId, null, request.getLimit());
         Budget budget = new Budget();
         budget.setId(UUID.randomUUID());
         budget.setUserId(userId);
@@ -47,7 +70,9 @@ public class BudgetServiceImpl implements BudgetService {
         budget.setCreatedAt(now);
         budget.setUpdatedAt(now);
         budget.setDeleted(false);
-        return toResponse(budgetRepository.save(budget), spentFor(userId, budget.getCategory()));
+        Budget saved = budgetRepository.save(budget);
+        refreshAlerts(userId);
+        return toResponse(saved, spentFor(userId, saved.getCategory()));
     }
 
     @Override
@@ -59,9 +84,12 @@ public class BudgetServiceImpl implements BudgetService {
         if (existing != null && !existing.getId().equals(budget.getId())) {
             throw new DuplicateResourceException("A budget already exists for " + request.getCategory());
         }
+        enforceCapacity(userId, budget, request.getLimit());
         copy(request, budget);
         budget.setUpdatedAt(LocalDateTime.now());
-        return toResponse(budgetRepository.save(budget), spentFor(userId, budget.getCategory()));
+        Budget saved = budgetRepository.save(budget);
+        refreshAlerts(userId);
+        return toResponse(saved, spentFor(userId, saved.getCategory()));
     }
 
     @Override
@@ -71,7 +99,7 @@ public class BudgetServiceImpl implements BudgetService {
                 transactionRepository.findByUserIdAndDeletedFalseOrderByDateDescCreatedAtDesc(userId);
         List<BudgetResponse> rows = new ArrayList<>();
         for (Budget budget : budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)) {
-            rows.add(toResponse(budget, spentIn(transactions, budget.getCategory())));
+            rows.add(toResponse(budget, BudgetSpending.spent(transactions, budget.getCategory(), LocalDate.now())));
         }
         return rows;
     }
@@ -91,20 +119,47 @@ public class BudgetServiceImpl implements BudgetService {
         }
     }
 
-    private BigDecimal spentFor(UUID userId, String category) {
-        return spentIn(transactionRepository.findByUserIdAndDeletedFalseOrderByDateDescCreatedAtDesc(userId), category);
-    }
-
-    private BigDecimal spentIn(List<Transaction> transactions, String category) {
-        BigDecimal spent = BigDecimal.ZERO;
-        for (Transaction transaction : transactions) {
-            boolean expense = "expense".equalsIgnoreCase(transaction.getType());
-            boolean sameCategory = category != null && category.equalsIgnoreCase(transaction.getCategory());
-            if (expense && sameCategory && transaction.getAmount() != null) {
-                spent = spent.add(transaction.getAmount());
+    private void enforceCapacity(UUID userId, Budget editing, BigDecimal newLimit) {
+        FinanceProfile profile = financeProfileRepository.findByUserIdAndDeletedFalse(userId)
+                .orElseThrow(() -> new ValidationException("Complete financial setup before allocating a budget."));
+        BigDecimal income = FinancialPlan.totalMonthlyIncome(profile.getMonthlyIncome(), profile.getAdditionalIncome());
+        BigDecimal planning = FinancialPlan.planningCapacity(income, profile.getMonthlyExpenses(),
+                profile.getMonthlyEmi(), profile.getOtherCommitments());
+        BigDecimal goalPlans = BigDecimal.ZERO;
+        for (Goal goal : goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)) {
+            if ("active".equalsIgnoreCase(goal.getStatus()) && goal.getPlannedContribution() != null) {
+                goalPlans = goalPlans.add(goal.getPlannedContribution());
             }
         }
-        return spent;
+        BigDecimal capacity = FinancialPlan.budgetCapacity(planning, goalPlans);
+        BigDecimal allocated = BigDecimal.ZERO;
+        for (Budget budget : budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)) {
+            if (editing != null && editing.getId().equals(budget.getId())) {
+                continue;
+            }
+            if (budget.getLimit() != null) {
+                allocated = allocated.add(budget.getLimit());
+            }
+        }
+        BigDecimal remaining = FinancialPlan.remainingBudgetCapacity(capacity, allocated);
+        if (FinancialPlan.money(newLimit).compareTo(remaining) > 0) {
+            throw new ValidationException(FinancialPlan.budgetCapacityMessage(capacity, allocated, remaining));
+        }
+    }
+
+    private void refreshAlerts(UUID userId) {
+        try {
+            budgetAlertService.evaluate(userId);
+        } catch (RuntimeException exception) {
+            log.warn("Budget alerts were not refreshed: {}", exception.getMessage());
+        }
+    }
+
+    private BigDecimal spentFor(UUID userId, String category) {
+        return BudgetSpending.spent(
+                transactionRepository.findByUserIdAndDeletedFalseOrderByDateDescCreatedAtDesc(userId),
+                category,
+                LocalDate.now());
     }
 
     private void copy(BudgetRequest request, Budget budget) {

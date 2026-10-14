@@ -4,12 +4,13 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../service/auth.service';
 import { assignError, assignErrors } from '../../shared/field-state';
 import { homePath, Validators } from '../../shared/format';
+import { SiteFooterComponent } from '../../shared/site-footer.component';
 import { FinanceService } from '../../service/finance.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, SiteFooterComponent],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
 })

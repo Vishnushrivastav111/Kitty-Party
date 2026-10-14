@@ -6,11 +6,12 @@ import { DialogService } from '../../../shared/dialog.service';
 import { parseApiError } from '../../../shared/api-error';
 import { assignError, assignErrors } from '../../../shared/field-state';
 import { Validators } from '../../../shared/format';
+import { SiteFooterComponent } from '../../../shared/site-footer.component';
 
 @Component({
   selector: 'app-forgot',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, SiteFooterComponent],
   templateUrl: './forgot.component.html',
   styleUrl: './forgot.component.scss',
 })
