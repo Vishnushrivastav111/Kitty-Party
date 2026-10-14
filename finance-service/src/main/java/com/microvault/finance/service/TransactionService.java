@@ -13,4 +13,5 @@ public interface TransactionService {
     List<TransactionResponse> list(UUID userId);
     void softDelete(UUID userId, UUID id);
     void softDeleteAll(UUID userId);
+    void softDeleteInternal(UUID userId, UUID id);
 }
