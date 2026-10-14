@@ -1,7 +1,7 @@
 import { Tx } from '../model/models';
 
 export const API_CAPABILITIES = {
-  transactionDeletionApproval: false,
+  transactionDeletionApproval: true,
   financialSetupApproval: false,
   reportCategoryFilter: false,
   reportTypeFilter: false,

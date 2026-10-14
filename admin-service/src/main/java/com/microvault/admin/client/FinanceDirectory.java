@@ -10,7 +10,6 @@ import java.util.UUID;
 
 @Component
 public class FinanceDirectory {
-
     private final RestClient restClient;
     private final String internalToken;
 
@@ -21,12 +20,16 @@ public class FinanceDirectory {
     }
 
     public List<UUID> usersWithProfile() {
-        List<UUID> ids = restClient.get()
-                .uri("/api/finance/profiles/active-user-ids")
-                .header("X-Internal-Token", internalToken)
-                .retrieve()
-                .body(new ParameterizedTypeReference<List<UUID>>() {
-                });
+        List<UUID> ids = restClient.get().uri("/api/finance/profiles/active-user-ids")
+                .header("X-Internal-Token", internalToken).retrieve()
+                .body(new ParameterizedTypeReference<List<UUID>>() {});
         return ids == null ? List.of() : ids;
+    }
+
+    public void softDeleteTransaction(UUID userId, UUID transactionId) {
+        restClient.delete()
+                .uri(builder -> builder.path("/api/internal/transactions/{id}").queryParam("userId", userId).build(transactionId))
+                .header("X-Internal-Token", internalToken)
+                .retrieve().toBodilessEntity();
     }
 }
