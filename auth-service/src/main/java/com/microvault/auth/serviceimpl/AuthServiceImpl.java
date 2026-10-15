@@ -88,7 +88,7 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("Invalid email or password");
         }
         if (!"active".equalsIgnoreCase(user.getStatus())) {
-            throw new ForbiddenException("This account is inactive. Please contact an admin.");
+            throw new ForbiddenException("Your account has been blocked. Please contact the administrator.");
         }
 
         LoginResponse response = new LoginResponse();
@@ -108,6 +108,10 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(readOnly = true)
     public SessionResponse session(String authorization) {
         User user = loadActive(requireUserId(authorization));
+        if (!"active".equalsIgnoreCase(user.getStatus())) {
+            // A blocked member's earlier sign-in stops working right away.
+            throw new UnauthorizedException("Login is required");
+        }
         SessionResponse response = new SessionResponse();
         response.setUserId(user.getId());
         response.setFullName(user.getFullName());
@@ -169,7 +173,12 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public UserResponse currentUser(String authorization) {
-        return toResponse(loadActive(requireUserId(authorization)));
+        User user = loadActive(requireUserId(authorization));
+        if (!"active".equalsIgnoreCase(user.getStatus())) {
+            // A blocked member's earlier sign-in stops working right away.
+            throw new UnauthorizedException("Login is required");
+        }
+        return toResponse(user);
     }
 
     @Override

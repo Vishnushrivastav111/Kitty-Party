@@ -166,12 +166,12 @@ class AuthControllerTest {
     @Test
     void loginRejectsAnInactiveAccountWith403() throws Exception {
         when(authService.login(any(LoginRequest.class)))
-                .thenThrow(new ForbiddenException("This account is inactive. Please contact an admin."));
+                .thenThrow(new ForbiddenException("Your account has been blocked. Please contact the administrator."));
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(LOGIN_BODY))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.message").value("This account is inactive. Please contact an admin."));
+                .andExpect(jsonPath("$.message").value("Your account has been blocked. Please contact the administrator."));
     }
 
     @Test

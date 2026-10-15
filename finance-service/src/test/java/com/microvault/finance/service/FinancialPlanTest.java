@@ -18,14 +18,24 @@ class FinancialPlanTest {
     }
 
     @Test
-    void planningCapacitySubtractsObligationsOnce() {
-        BigDecimal planning = FinancialPlan.planningCapacity(
-                new BigDecimal("80000"), new BigDecimal("30000"), new BigDecimal("8000"), new BigDecimal("2000"));
-        assertEquals(new BigDecimal("40000.00"), planning);
-        assertEquals(new BigDecimal("25000.00"),
-                FinancialPlan.budgetCapacity(planning, new BigDecimal("15000")));
+    void capacityComesFromIncomeBudgetsAndGoalsOnly() {
+        BigDecimal income = new BigDecimal("80000");
+        assertEquals(new BigDecimal("65000.00"),
+                FinancialPlan.budgetCapacity(income, new BigDecimal("15000")));
         assertEquals(new BigDecimal("10000.00"),
                 FinancialPlan.remainingBudgetCapacity(new BigDecimal("25000"), new BigDecimal("15000")));
+        // income 80000, budgets 50000, another goal already takes 5000 -> 25000 left for this goal
+        assertEquals(new BigDecimal("25000.00"),
+                FinancialPlan.goalContributionCapacity(income, new BigDecimal("50000"), new BigDecimal("5000")));
+    }
+
+    @Test
+    void overCommittedCapacityStaysSignedSoItCanBeReported() {
+        assertEquals(new BigDecimal("-4000.00"),
+                FinancialPlan.budgetCapacity(new BigDecimal("1000"), new BigDecimal("5000")));
+        assertEquals(new BigDecimal("0.00"),
+                FinancialPlan.nonNegative(FinancialPlan.goalContributionCapacity(
+                        new BigDecimal("1000"), new BigDecimal("900"), new BigDecimal("500"))));
     }
 
     @Test

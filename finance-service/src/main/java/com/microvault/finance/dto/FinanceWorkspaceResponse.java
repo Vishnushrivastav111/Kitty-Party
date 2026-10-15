@@ -12,6 +12,10 @@ public class FinanceWorkspaceResponse {
     private List<ReportResponse> reports = new ArrayList<>();
     private List<AffordabilityResponse> affordChecks = new ArrayList<>();
     private boolean setupSkipped;
+    private SavingsOverviewResponse savingsOverview;
+
+    public SavingsOverviewResponse getSavingsOverview() { return savingsOverview; }
+    public void setSavingsOverview(SavingsOverviewResponse savingsOverview) { this.savingsOverview = savingsOverview; }
 
     public FinanceProfileResponse getFinance() { return finance; }
     public void setFinance(FinanceProfileResponse finance) { this.finance = finance; }

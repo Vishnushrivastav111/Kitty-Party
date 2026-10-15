@@ -6,11 +6,12 @@ import { assignError, assignErrors, confirmError, mergeApiFields } from '../../.
 import { joinFullName, personName } from '../../../shared/finance-rules';
 import { Validators } from '../../../shared/format';
 import { SiteFooterComponent } from '../../../shared/site-footer.component';
+import { TermsDialogComponent } from '../terms/terms-dialog.component';
 
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [FormsModule, RouterLink, SiteFooterComponent],
+  imports: [FormsModule, RouterLink, SiteFooterComponent, TermsDialogComponent],
   templateUrl: './register.component.html',
   styleUrl: './register.component.scss',
 })
@@ -25,13 +26,38 @@ export class RegisterComponent {
   phone = '';
   password = '';
   confirmPassword = '';
-  terms = localStorage.getItem('mv_termsAccepted') === 'true';
+  terms = false;
+  private termsRead = false;
+  readonly termsOpen = signal(false);
   readonly show = signal(false);
   readonly show2 = signal(false);
   readonly busy = signal(false);
   readonly errors = signal<Record<string, string>>({});
   readonly formError = signal('');
   readonly created = signal(false);
+
+  openTerms(event: Event): void {
+    event.preventDefault();
+    this.termsOpen.set(true);
+  }
+
+  /** The box can be ticked only after the terms were read in the dialog; otherwise warn and leave it unticked. */
+  onTermsClick(event: Event): void {
+    if (!this.termsRead) {
+      event.preventDefault();
+      this.errors.update((current) => ({ ...current, terms: 'Please read the Terms & Conditions first. Open them from the link, scroll to the end, then accept.' }));
+      return;
+    }
+    this.terms = (event.target as HTMLInputElement).checked;
+    this.errors.update((current) => assignError(current, 'terms', this.terms ? '' : 'Please accept the Terms & Conditions'));
+  }
+
+  acceptTerms(): void {
+    this.termsRead = true;
+    this.terms = true;
+    this.termsOpen.set(false);
+    this.errors.update((current) => assignError(current, 'terms', ''));
+  }
 
   onFirst(value: string): void {
     this.firstName = value;
@@ -81,7 +107,7 @@ export class RegisterComponent {
       phone: Validators.phone(this.phone.trim()),
       password: Validators.password(this.password),
       confirmPassword: this.confirmPassword !== this.password ? 'Passwords do not match' : '',
-      terms: this.terms ? '' : 'Please accept the Terms & Conditions',
+      terms: this.terms && this.termsRead ? '' : this.termsRead ? 'Please accept the Terms & Conditions' : 'Please read the Terms & Conditions first. Open them from the link, scroll to the end, then accept.',
     };
     if (!errors['firstName'] && !errors['lastName'] && fullName.trim().length < 3) {
       errors['lastName'] = 'Enter a first and last name';
@@ -99,7 +125,7 @@ export class RegisterComponent {
     });
     this.busy.set(false);
     if (!result.ok) {
-      this.formError.set(result.message || 'The server did not complete registration.');
+      this.formError.set(result.message || 'We could not complete your registration. Please try again.');
       this.errors.set(mergeApiFields(errors, result.fieldErrors));
       this.created.set(false);
       return;

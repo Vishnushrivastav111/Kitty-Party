@@ -16,6 +16,7 @@ import com.microvault.finance.repository.GoalRepository;
 import com.microvault.finance.repository.SavingsRepository;
 import com.microvault.finance.service.AffordabilityService;
 import com.microvault.finance.service.FinancialPlan;
+import com.microvault.finance.service.SavingsPosition;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,9 +74,13 @@ public class AffordabilityServiceImpl implements AffordabilityService {
 
         FinanceProfile profile = financeProfileRepository.findByUserIdAndDeletedFalse(userId).orElse(null);
         List<SavingsEntry> savings = savingsRepository.findByUserIdAndDeletedFalseOrderByDateDesc(userId);
-        BigDecimal spendable = spendableCash(profile, savings);
-        BigDecimal planning = planning(profile);
-        BigDecimal room = monthlyRoom(userId, profile, planning);
+        List<Goal> goals = goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId);
+        BigDecimal income = income(profile);
+        boolean need = SavingsPosition.isNeed(request.getPriority());
+        SavingsPosition.Snapshot position = SavingsPosition.of(profile, savings, goals);
+        BigDecimal protectedSavings = need ? FinancialPlan.money(null) : SavingsPosition.protectedForNeeds(income);
+        BigDecimal spendable = SavingsPosition.availableFor(position, income, need);
+        BigDecimal room = monthlyRoom(userId, profile, income, goals);
 
         String verdict;
         String level;
@@ -87,13 +92,17 @@ public class AffordabilityServiceImpl implements AffordabilityService {
         if (profile == null) {
             verdict = "Not currently affordable";
             level = "danger";
-            suggestion = "Complete financial setup before treating this purchase as affordable. Spendable cash on record is "
+            suggestion = "Complete financial setup before treating this purchase as affordable. Savings available on record are "
                     + FinancialPlan.rupee(spendable) + ".";
-        } else if (planning.signum() < 0) {
+        } else if (income.signum() <= 0) {
             verdict = "Not currently affordable";
             level = "danger";
-            suggestion = "Essential expenses, EMI, and other commitments already exceed monthly income by "
-                    + FinancialPlan.rupee(planning.abs()) + ". This purchase would add to that gap.";
+            suggestion = "Add your monthly income in financial setup so this purchase can be checked against your budgets and goals.";
+        } else if (room.signum() < 0) {
+            verdict = "Not currently affordable";
+            level = "danger";
+            suggestion = "Your category budgets and active goal plans already add up to " + FinancialPlan.rupee(room.abs())
+                    + " more than your monthly income. Reduce a budget or pause a goal before taking on this purchase.";
         } else if ("emi".equals(payment)) {
             if (installment.compareTo(FinancialPlan.nonNegative(room)) <= 0 && room.signum() > 0) {
                 verdict = "Affordable now";
@@ -107,14 +116,15 @@ public class AffordabilityServiceImpl implements AffordabilityService {
                 level = "danger";
                 suggestion = "The extra EMI of " + FinancialPlan.rupee(installment)
                         + " is above the " + FinancialPlan.rupee(FinancialPlan.nonNegative(room))
-                        + " left after obligations, budgets, and active goals. A longer tenure or a smaller amount may fit.";
+                        + " left after category budgets and active goals. A longer tenure or a smaller amount may fit.";
             }
         } else if (request.getAmount().compareTo(spendable) <= 0) {
             verdict = "Affordable now";
             level = "success";
-            suggestion = "Unallocated cash of " + FinancialPlan.rupee(spendable)
-                    + " covers " + FinancialPlan.rupee(request.getAmount())
-                    + " without using emergency reserves, goal savings, or investments.";
+            suggestion = "Available savings of " + FinancialPlan.rupee(spendable)
+                    + " cover " + FinancialPlan.rupee(request.getAmount())
+                    + " without using your emergency reserve, goal savings, or investments."
+                    + protectionNote(need, protectedSavings);
         } else {
             shortfall = FinancialPlan.money(request.getAmount().subtract(spendable));
             BigDecimal capacity = FinancialPlan.nonNegative(room);
@@ -128,12 +138,14 @@ public class AffordabilityServiceImpl implements AffordabilityService {
                 canCreateGoal = true;
                 suggestion = "You would need another " + FinancialPlan.rupee(shortfall)
                         + ". About " + monthsToSave + " month" + (monthsToSave == 1 ? "" : "s")
-                        + " at " + FinancialPlan.rupee(capacity) + " a month can close that gap. Create a savings goal if you want to track it.";
+                        + " at " + FinancialPlan.rupee(capacity) + " a month can close that gap. Create a savings goal if you want to track it."
+                        + protectionNote(need, protectedSavings);
             } else {
                 verdict = "Not currently affordable";
                 level = "danger";
                 suggestion = "The shortfall is " + FinancialPlan.rupee(shortfall)
-                        + " and there is no monthly capacity left for a new savings plan after obligations, budgets, and active goals.";
+                        + " and there is no monthly capacity left for a new savings plan after category budgets and active goals."
+                        + protectionNote(need, protectedSavings);
             }
         }
 
@@ -164,7 +176,11 @@ public class AffordabilityServiceImpl implements AffordabilityService {
         response.setTotalRepayment(totalRepayment);
         response.setPaymentMethod(payment);
         response.setCanCreateGoal(canCreateGoal);
-        response.setPlan(buildPlan(profile, spendable, planning, room, request.getAmount(), installment, totalRepayment, suggestion));
+        response.setUnallocatedLiquid(position.unallocatedLiquid());
+        response.setEmergencyReserve(position.emergencyReserve());
+        response.setProtectedSavings(protectedSavings);
+        response.setPlan(buildPlan(income, spendable, room, request.getAmount(), installment, totalRepayment, suggestion,
+                need, protectedSavings, position.emergencyReserve()));
         return response;
     }
 
@@ -202,15 +218,14 @@ public class AffordabilityServiceImpl implements AffordabilityService {
         }
     }
 
-    private BigDecimal planning(FinanceProfile profile) {
+    private BigDecimal income(FinanceProfile profile) {
         if (profile == null) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
-        BigDecimal income = FinancialPlan.totalMonthlyIncome(profile.getMonthlyIncome(), profile.getAdditionalIncome());
-        return FinancialPlan.planningCapacity(income, profile.getMonthlyExpenses(), profile.getMonthlyEmi(), profile.getOtherCommitments());
+        return FinancialPlan.totalMonthlyIncome(profile.getMonthlyIncome(), profile.getAdditionalIncome());
     }
 
-    private BigDecimal monthlyRoom(UUID userId, FinanceProfile profile, BigDecimal planning) {
+    private BigDecimal monthlyRoom(UUID userId, FinanceProfile profile, BigDecimal income, List<Goal> activeCandidates) {
         if (profile == null) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
@@ -221,51 +236,33 @@ public class AffordabilityServiceImpl implements AffordabilityService {
             }
         }
         BigDecimal goals = BigDecimal.ZERO;
-        for (Goal goal : goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)) {
+        for (Goal goal : activeCandidates) {
             if ("active".equalsIgnoreCase(goal.getStatus()) && goal.getPlannedContribution() != null) {
                 goals = goals.add(goal.getPlannedContribution());
             }
         }
-        return FinancialPlan.goalContributionCapacity(planning, budgets, goals);
+        return FinancialPlan.goalContributionCapacity(income, budgets, goals);
     }
 
-    /**
-     * Spendable cash is unallocated liquid savings plus later general contributions.
-     * Emergency reserves, goal-linked contributions, and investments are not spendable.
-     * An "Opening" entry is ignored when current savings already records that balance.
-     */
-    private BigDecimal spendableCash(FinanceProfile profile, List<SavingsEntry> entries) {
-        BigDecimal current = profile == null ? BigDecimal.ZERO : FinancialPlan.money(profile.getCurrentSavings());
-        BigDecimal emergency = profile == null ? BigDecimal.ZERO : FinancialPlan.money(profile.getEmergencyReserve());
-        if (emergency.compareTo(current) > 0) {
-            emergency = current;
+    private String protectionNote(boolean need, BigDecimal protectedSavings) {
+        if (need || protectedSavings.signum() <= 0) {
+            return "";
         }
-        BigDecimal total = current.subtract(emergency);
-        for (SavingsEntry entry : entries) {
-            if (entry.getAmount() == null || entry.getGoalId() != null) {
-                continue;
-            }
-            if (FinancialPlan.emergencyCategory(entry.getCategory())) {
-                continue;
-            }
-            if (current.signum() > 0 && FinancialPlan.openingMirror(entry.getCategory())) {
-                continue;
-            }
-            total = total.add(entry.getAmount());
-        }
-        return FinancialPlan.money(total);
+        return " For a want, " + FinancialPlan.rupee(protectedSavings) + " of your savings ("
+                + SavingsPosition.PROTECTED_MONTHS + " months of income) is kept for needs and utilities.";
     }
 
-    private List<String> buildPlan(FinanceProfile profile, BigDecimal spendable, BigDecimal planning, BigDecimal room,
-                                   BigDecimal amount, BigDecimal installment, BigDecimal totalRepayment, String suggestion) {
+    private List<String> buildPlan(BigDecimal income, BigDecimal spendable, BigDecimal room,
+                                   BigDecimal amount, BigDecimal installment, BigDecimal totalRepayment, String suggestion,
+                                   boolean need, BigDecimal protectedSavings, BigDecimal emergencyReserve) {
         List<String> plan = new ArrayList<>();
-        BigDecimal income = profile == null ? FinancialPlan.money(null)
-                : FinancialPlan.totalMonthlyIncome(profile.getMonthlyIncome(), profile.getAdditionalIncome());
-        BigDecimal expenses = profile == null ? FinancialPlan.money(null) : FinancialPlan.money(profile.getMonthlyExpenses());
-        BigDecimal emi = profile == null ? FinancialPlan.money(null) : FinancialPlan.money(profile.getMonthlyEmi());
-        plan.add("Monthly planning capacity starts from income " + income + " minus essential expenses " + expenses
-                + ", EMI " + emi + ", and other commitments. Result: " + planning + ".");
-        plan.add("Spendable cash excludes emergency reserves, goal-linked savings, and investments. It is " + spendable + ".");
+        plan.add("Monthly income on record is " + income + ". Category budgets and active goal plans are subtracted once from it.");
+        plan.add("Your emergency reserve of " + emergencyReserve + ", goal savings, and investments are never used for a purchase.");
+        if (!need) {
+            plan.add("For a want, " + protectedSavings + " of savings (" + SavingsPosition.PROTECTED_MONTHS
+                    + " months of income) is kept for needs and utilities. Only savings above that count.");
+        }
+        plan.add("Savings available for this purchase: " + spendable + ".");
         plan.add("Monthly room left for a new commitment after budgets and active goals is " + room + ".");
         plan.add("The purchase amount is " + amount + ".");
         if (installment != null) {

@@ -17,3 +17,7 @@ desktop.ini
 
 # Logs
 *.log
+
+# Angular build cache
+.angular/
+

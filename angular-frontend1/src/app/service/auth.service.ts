@@ -31,13 +31,13 @@ export class AuthService {
         { email, password },
       );
       if (!res?.ok || !res.token || !res.user) {
-        return { ok: false, message: res?.message || 'The server did not confirm the sign-in.' };
+        return { ok: false, message: res?.message || 'We could not sign you in. Please try again.' };
       }
       this.persist(res.token, res.user);
       return { ok: true, user: res.user };
     } catch (error) {
       const parsed = error instanceof ApiError ? error : null;
-      return { ok: false, message: parsed?.message || 'The server did not confirm the sign-in.', fieldErrors: parsed?.fieldErrors };
+      return { ok: false, message: parsed?.message || 'We could not sign you in. Please try again.', fieldErrors: parsed?.fieldErrors };
     }
   }
 
@@ -55,7 +55,7 @@ export class AuthService {
       const parsed = error instanceof ApiError ? error : null;
       return {
         ok: false,
-        message: parsed?.message || 'The server did not complete registration.',
+        message: parsed?.message || 'We could not complete your registration. Please try again.',
         fieldErrors: parsed?.fieldErrors,
       };
     }

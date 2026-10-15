@@ -1,6 +1,17 @@
 
     <div class="page-header"><h1>My Budget</h1><p>Your limits compared with confirmed spending</p></div>
-    <div class="alert-box info">Recommended Budget is not returned by the API, so it is not shown and it does not replace these limits. Saving a budget does not change transactions.</div>
+    <div class="alert-box info">These are the limits you set for each category. Saving a budget does not change your transactions.</div>
+    @if (vault.capacity(); as cap) {
+      <div class="alert-box" [class.info]="cap.remaining >= 0" [class.warning]="cap.remaining < 0">
+        Monthly income {{ money(cap.income) }}. Active goal contributions {{ money(cap.goalPlans) }}.
+        Category budgets add up to {{ money(cap.allocated) }}.
+        @if (cap.remaining >= 0) { You can still allocate {{ money(cap.remaining) }}. }
+        @else { Budgets and goal contributions are {{ money(-cap.remaining) }} above your income. }
+        Include rent, food and EMI / Loans here.
+      </div>
+    } @else {
+      <div class="alert-box warning">Add your monthly income in <a routerLink="/setup">financial setup</a> before allocating budgets.</div>
+    }
     <div class="cards">
       <div class="card"><div><h3>Monthly budget</h3><h2>{{ vault.position().monthlyBudget == null ? '—' : money(vault.position().monthlyBudget) }}</h2></div></div>
       <div class="card"><div><h3>This month's spending</h3><h2>{{ money(vault.position().monthlySpending) }}</h2><p>Expense transactions in the current month.</p></div></div>

@@ -4,6 +4,7 @@ import com.microvault.admin.client.AuthDirectory;
 import com.microvault.admin.client.FinanceDirectory;
 import com.microvault.admin.dto.ApprovalRequestCreate;
 import com.microvault.admin.dto.ApprovalRequestResponse;
+import com.microvault.admin.dto.UserCard;
 import com.microvault.admin.entity.ApprovalRequest;
 import com.microvault.admin.exception.ResourceNotFoundException;
 import com.microvault.admin.exception.ValidationException;
@@ -13,7 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -59,15 +62,17 @@ public class ApprovalServiceImpl implements ApprovalService {
     @Override
     @Transactional(readOnly = true)
     public List<ApprovalRequestResponse> mine(UUID requesterId) {
+        Map<UUID, UserCard> users = users();
         return repository.findByRequesterIdAndDeletedFalseOrderByCreatedAtDesc(requesterId)
-                .stream().map(this::toResponse).toList();
+                .stream().map(entity -> toResponse(entity, users)).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ApprovalRequestResponse> all() {
+        Map<UUID, UserCard> users = users();
         return repository.findByDeletedFalseOrderByCreatedAtDesc()
-                .stream().map(this::toResponse).toList();
+                .stream().map(entity -> toResponse(entity, users)).toList();
     }
 
     @Override
@@ -107,11 +112,57 @@ public class ApprovalServiceImpl implements ApprovalService {
     }
 
     private ApprovalRequestResponse toResponse(ApprovalRequest entity) {
+        return toResponse(entity, users());
+    }
+
+    private Map<UUID, UserCard> users() {
+        try {
+            Map<UUID, UserCard> byId = new HashMap<>();
+            for (UserCard user : authDirectory.listUsers(null)) {
+                if (user != null && user.getId() != null) {
+                    byId.put(user.getId(), user);
+                }
+            }
+            return byId;
+        } catch (RuntimeException exception) {
+            return Map.of();
+        }
+    }
+
+    private String describe(ApprovalRequest entity) {
+        FinanceDirectory.TransactionSummary transaction = financeDirectory.transaction(entity.getRequesterId(), entity.getResourceId());
+        if (transaction == null) {
+            return "Transaction (details not available)";
+        }
+        StringBuilder label = new StringBuilder(transaction.getName() == null ? "Transaction" : transaction.getName());
+        if (transaction.getCategory() != null && !transaction.getCategory().isBlank()) {
+            label.append(" · ").append(transaction.getCategory());
+        }
+        if (transaction.getAmount() != null) {
+            label.append(" · ₹").append(transaction.getAmount().stripTrailingZeros().toPlainString());
+        }
+        if (transaction.getDate() != null) {
+            label.append(" · ").append(transaction.getDate());
+        }
+        return label.toString();
+    }
+
+    private ApprovalRequestResponse toResponse(ApprovalRequest entity, Map<UUID, UserCard> users) {
         ApprovalRequestResponse response = new ApprovalRequestResponse();
         response.setId(entity.getId());
         response.setRequesterId(entity.getRequesterId());
+        UserCard requester = users.get(entity.getRequesterId());
+        if (requester != null) {
+            response.setRequesterName(requester.getFullName());
+            response.setRequesterEmail(requester.getEmail());
+        }
+        UserCard reviewer = entity.getReviewerId() == null ? null : users.get(entity.getReviewerId());
+        if (reviewer != null) {
+            response.setReviewerName(reviewer.getFullName());
+        }
         response.setRequestType(entity.getRequestType());
         response.setResourceId(entity.getResourceId());
+        response.setResourceLabel(describe(entity));
         response.setReason(entity.getReason());
         response.setStatus(entity.getStatus());
         response.setReviewerId(entity.getReviewerId());

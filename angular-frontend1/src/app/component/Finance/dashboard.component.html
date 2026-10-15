@@ -17,30 +17,22 @@
       <p>Live overview with charts, progress, and your saved data</p>
     </div>
     <div class="cards">
-      <div class="card"><div class="card-icon navy"><i class="fas fa-percent"></i></div><div><h3>Savings rate</h3><h2>{{ stats() ? stats()!.health + '%' : '—' }}</h2><p>Share of monthly income left after essential expenses, EMI, and other commitments.</p></div></div>
-      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Total savings</h3><h2>{{ money(position().totalSavings) }}</h2><div class="progress c6"><span [style.width.%]="saveWidth()"></span></div></div></div>
+      <div class="card"><div class="card-icon navy"><i class="fas fa-percent"></i></div><div><h3>Savings rate</h3><h2>{{ stats() ? stats()!.health + '%' : '—' }}</h2><p>Share of monthly income not spent this month.</p></div></div>
+      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Total savings</h3><h2>{{ money(totalSavings()) }}</h2><div class="progress c6"><span [style.width.%]="saveWidth()"></span></div></div></div>
       <div class="card"><div class="card-icon orange"><i class="fas fa-chart-pie"></i></div><div><h3>Monthly budget</h3><h2>{{ position().monthlyBudget == null ? '—' : money(position().monthlyBudget) }}</h2><p>This month's spending {{ money(position().monthlySpending) }}</p><div class="progress c3"><span [style.width.%]="budgetPct()"></span></div></div></div>
       <div class="card"><div class="card-icon teal"><i class="fas fa-bullseye"></i></div><div><h3>Active goals</h3><h2>{{ stats() ? stats()!.activeGoals : '—' }}</h2><div class="progress c2"><span [style.width.%]="goalWidth()"></span></div></div></div>
     </div>
     <div class="cards">
       <div class="card"><div class="card-icon green"><i class="fas fa-arrow-down"></i></div><div><h3>Monthly income</h3><h2>{{ stats() ? money(stats()!.income) : '—' }}</h2></div></div>
       <div class="card"><div class="card-icon orange"><i class="fas fa-arrow-up"></i></div><div><h3>Monthly expenses</h3><h2>{{ stats() ? money(stats()!.expenses) : '—' }}</h2><p>Transaction spending {{ stats() ? money(stats()!.spent) : '—' }}</p></div></div>
-      <div class="card"><div class="card-icon teal"><i class="fas fa-scale-balanced"></i></div><div><h3>Planning capacity</h3><h2>{{ surplus() === null ? '—' : money(surplus()) }}</h2><p>Income minus essential expenses, EMI, and other commitments.</p></div></div>
+      <div class="card"><div class="card-icon teal"><i class="fas fa-scale-balanced"></i></div><div><h3>Unbudgeted income</h3><h2>{{ capacity() === null ? '—' : money(capacity()!.remaining) }}</h2><p>@if (capacity() === null) { Add your monthly income in financial setup. } @else { Income left after category budgets and active goals. }</p></div></div>
       <div class="card"><div class="card-icon navy"><i class="fas fa-wallet"></i></div><div><h3>Budget remaining</h3><h2>{{ position().budgetRemaining == null ? '—' : money(position().budgetRemaining) }}</h2><p>Budget overrun {{ position().budgetOverrun == null ? '—' : money(position().budgetOverrun) }}</p></div></div>
     </div>
-    <div class="cards">
-      <div class="card"><div class="card-icon green"><i class="fas fa-bullseye"></i></div><div><h3>Goal contributions</h3><h2>{{ money(position().goalContributionTotal) }}</h2><p>Each goal's own saved amount. Not total savings.</p></div></div>
-      <div class="card"><div><h3>Emergency reserve</h3><h2>{{ vault.finance() ? money(vault.finance()!.emergencyReserve) : '—' }}</h2><p>Protected portion of liquid savings. It is not counted again as spendable cash.</p></div></div>
-      <div class="card"><div><h3>Unallocated liquid savings</h3><h2>{{ unallocated() === null ? '—' : money(unallocated()) }}</h2><p>Liquid savings minus the emergency reserve.</p></div></div>
-      <div class="card"><div><h3>Latest affordability</h3><h2>{{ vault.affordabilityStale() ? 'Out of date' : (vault.affordChecks()[0] ? vault.affordChecks()[0].verdict : '—') }}</h2><p>The server capacity is not total savings.</p></div></div>
-    </div>
     @if (position().budgetOverrun) {
-      <div class="alert-box warning">Monthly budget exceeded by {{ money(position().budgetOverrun) }}. {{ money(position().budgetOverrun) }} will be considered from available savings. The savings balance is not reduced.</div>
+      <div class="alert-box warning">Monthly budget exceeded by {{ money(position().budgetOverrun) }}. This amount would need to come from your available savings.</div>
     }
-    @if (vault.finance()) {
-      <div class="alert-box info">Financial profile is the record saved by the server. The API does not include an approval step for setup.</div>
-    } @else {
-      <div class="alert-box warning">No saved financial profile is available. Unapproved or missing setup values are not shown as confirmed data.</div>
+    @if (!vault.finance()) {
+      <div class="alert-box warning">Your financial setup is not complete yet. <a routerLink="/setup">Complete it</a> to see your full financial picture.</div>
     }
     <app-graph-pager [index]="graphIndex()" [total]="graphs().length" [title]="activeGraph().title" (pageChange)="showGraph($event)">
       @if (!activeGraph().hasData) {
@@ -49,6 +41,51 @@
         <div class="chart-wrap"><canvas #stage></canvas></div>
       }
     </app-graph-pager>
+    <div class="panel">
+      <div class="panel-header"><h2>Monthly plan</h2><a class="btn btn-outline btn-sm" routerLink="/budget">Manage budgets</a></div>
+      @if (planLoading() && !plan()) {
+        <div class="empty-state">Loading your monthly plan…</div>
+      } @else if (planError()) {
+        <div class="alert-box danger" role="alert">{{ planError() }} <button type="button" class="btn btn-outline btn-sm" (click)="loadPlan()">Try again</button></div>
+      } @else if (plan()) {
+        @let row = plan()!;
+        <p class="plan-line">
+          Income <strong>{{ money(row['totalMonthlyIncome']) }}</strong>
+          − category budgets <strong>{{ money(row['allocatedBudgets']) }}</strong>
+          − planned goal contributions <strong>{{ money(row['plannedGoalContributions']) }}</strong>
+          = left to plan <strong [class.negative]="num(row['remainingBudgetCapacity']) < 0">{{ money(row['remainingBudgetCapacity']) }}</strong>
+        </p>
+        @if (num(row['remainingBudgetCapacity']) < 0) { <p class="negative">You have planned more than your income. Lower a budget or a goal contribution.</p> }
+        @if (insights().length) {
+          <h3 style="margin:14px 0 6px;color:var(--navy)">Guidance</h3>
+          <ul>
+            @for (note of insights(); track note) { <li>{{ note }}</li> }
+          </ul>
+        }
+      } @else {
+        <div class="empty-state">Complete your financial setup to see your monthly plan. <a routerLink="/setup">Set up now</a></div>
+      }
+      @if (budgetRows().length) {
+        <h3 style="margin:16px 0 8px;color:var(--navy)">My budgets</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Category</th><th>Limit</th><th>Spent</th><th>Remaining</th></tr></thead>
+            <tbody>
+              @for (row of budgetRows(); track row.id) {
+                <tr>
+                  <td>{{ row.category }}</td>
+                  <td>{{ money(row.limit) }}</td>
+                  <td>{{ money(row.spent) }}</td>
+                  <td>{{ money(row.remaining ?? row.math.remaining) }}@if (row.math.overrun) { <span class="negative"> Over {{ money(row.math.overrun) }}</span> }</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="empty-state" style="margin-top:10px">No budgets yet. <a routerLink="/budget">Add a budget</a></div>
+      }
+    </div>
     <div class="panel">
       <div class="panel-header">
         <h2>Recent transactions</h2>
@@ -96,8 +133,7 @@
       } @else {
         @for (goal of goalPreview(); track goal.id; let i = $index) {
           <div style="margin-bottom:14px">
-            <strong>{{ goal.title }}</strong> — saved {{ money(goal.saved) }} / {{ money(goal.target) }} ({{ pct(goal) }}%). Progress comes from amounts already set aside for this goal plus later contributions.
-            <div class="progress" [ngClass]="'c' + ((i % 6) + 1)"><span [style.width.%]="pct(goal)"></span></div>
+            <strong>{{ goal.title }}</strong> — saved {{ money(goal.saved) }} / {{ money(goal.target) }} ({{ pct(goal) }}%).            <div class="progress" [ngClass]="'c' + ((i % 6) + 1)"><span [style.width.%]="pct(goal)"></span></div>
           </div>
         }
       }

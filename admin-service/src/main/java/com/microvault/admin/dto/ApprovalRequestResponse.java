@@ -10,6 +10,8 @@ public class ApprovalRequestResponse {
     private String requesterEmail;
     private String requestType;
     private UUID resourceId;
+    /** Readable description of what the request is about, for example the transaction name and amount. */
+    private String resourceLabel;
     private String reason;
     private String status;
     private UUID reviewerId;
@@ -29,6 +31,8 @@ public class ApprovalRequestResponse {
     public void setRequestType(String requestType) { this.requestType = requestType; }
     public UUID getResourceId() { return resourceId; }
     public void setResourceId(UUID resourceId) { this.resourceId = resourceId; }
+    public String getResourceLabel() { return resourceLabel; }
+    public void setResourceLabel(String resourceLabel) { this.resourceLabel = resourceLabel; }
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
     public String getStatus() { return status; }

@@ -189,14 +189,14 @@ class FinanceProfileControllerTest {
     void summaryReturnsOwnSummary() throws Exception {
         MonthlySummaryResponse summary = new MonthlySummaryResponse();
         summary.setUserId(userId);
-        summary.setMonthlySurplus(new BigDecimal("30000"));
-        summary.setSavingsRatePercent(new BigDecimal("60.00"));
+        summary.setTotalMonthlyIncome(new BigDecimal("30000"));
+        summary.setRemainingBudgetCapacity(new BigDecimal("12000.50"));
         when(financeProfileService.summary(userId)).thenReturn(summary);
 
         mockMvc.perform(get("/api/finance/profile/" + userId + "/summary").header("Authorization", BEARER))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.monthlySurplus").value(30000))
-                .andExpect(jsonPath("$.savingsRatePercent").value(60.0));
+                .andExpect(jsonPath("$.totalMonthlyIncome").value(30000))
+                .andExpect(jsonPath("$.remainingBudgetCapacity").value(12000.5));
     }
 
     @Test

@@ -34,7 +34,8 @@ export class SavingsComponent {
   readonly busy = signal(false);
   readonly errors = signal<Record<string, string>>({});
   form: Saving = blank();
-  readonly total = computed(() => this.vault.savings().reduce((sum, row) => sum + num(row.amount), 0));
+  /** The single savings picture calculated by the finance service. */
+  readonly overview = this.vault.savingsOverview;
   readonly page = computed(() => queryRows(this.vault.savings(), this.search(), ['title', 'note', 'category'], { category: this.category() }, this.pageNo(), 6));
 
   constructor() {

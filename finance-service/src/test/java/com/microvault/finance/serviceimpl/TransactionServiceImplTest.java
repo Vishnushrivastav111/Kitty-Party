@@ -39,7 +39,7 @@ class TransactionServiceImplTest {
     private TransactionRepository transactionRepository;
 
     @Mock
-    private BudgetAlertService budgetAlertService;
+    private BudgetEffects budgetEffects;
 
     @InjectMocks
     private TransactionServiceImpl transactionService;
@@ -51,6 +51,37 @@ class TransactionServiceImplTest {
     void echoSavedEntity() {
         lenient().when(transactionRepository.save(any(Transaction.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    // ---------------------------------------------------------------- approval lookup
+
+    @Test
+    void describeForApprovalFindsTheOwnersTransactionEvenAfterItWasDeleted() {
+        Transaction deleted = new Transaction();
+        deleted.setId(id);
+        deleted.setUserId(userId);
+        deleted.setName("Laptop bag");
+        deleted.setCategory("Shopping");
+        deleted.setType("expense");
+        deleted.setAmount(new BigDecimal("2499"));
+        deleted.setDate(LocalDate.of(2026, 10, 16));
+        deleted.setDeleted(true);
+        when(transactionRepository.findById(id)).thenReturn(Optional.of(deleted));
+
+        TransactionResponse response = transactionService.describeForApproval(userId, id);
+
+        assertEquals("Laptop bag", response.getName());
+        assertEquals(new BigDecimal("2499"), response.getAmount());
+    }
+
+    @Test
+    void describeForApprovalHidesSomeoneElsesTransaction() {
+        Transaction other = new Transaction();
+        other.setId(id);
+        other.setUserId(UUID.randomUUID());
+        when(transactionRepository.findById(id)).thenReturn(Optional.of(other));
+
+        assertThrows(ResourceNotFoundException.class, () -> transactionService.describeForApproval(userId, id));
     }
 
     // ---------------------------------------------------------------- create

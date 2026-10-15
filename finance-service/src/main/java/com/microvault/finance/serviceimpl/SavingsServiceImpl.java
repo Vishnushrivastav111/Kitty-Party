@@ -1,15 +1,19 @@
 package com.microvault.finance.serviceimpl;
 
+import com.microvault.finance.dto.SavingsOverviewResponse;
 import com.microvault.finance.dto.SavingsRequest;
 import com.microvault.finance.dto.SavingsResponse;
+import com.microvault.finance.entity.FinanceProfile;
 import com.microvault.finance.entity.Goal;
 import com.microvault.finance.entity.SavingsEntry;
 import com.microvault.finance.exception.ResourceNotFoundException;
 import com.microvault.finance.exception.ValidationException;
+import com.microvault.finance.repository.FinanceProfileRepository;
 import com.microvault.finance.repository.GoalRepository;
 import com.microvault.finance.repository.SavingsRepository;
 import com.microvault.finance.service.FinancialPlan;
 import com.microvault.finance.service.GoalProgress;
+import com.microvault.finance.service.SavingsPosition;
 import com.microvault.finance.service.SavingsService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,10 +31,33 @@ public class SavingsServiceImpl implements SavingsService {
 
     private final SavingsRepository savingsRepository;
     private final GoalRepository goalRepository;
+    private final FinanceProfileRepository financeProfileRepository;
 
-    public SavingsServiceImpl(SavingsRepository savingsRepository, GoalRepository goalRepository) {
+    public SavingsServiceImpl(SavingsRepository savingsRepository, GoalRepository goalRepository,
+                              FinanceProfileRepository financeProfileRepository) {
         this.savingsRepository = savingsRepository;
         this.goalRepository = goalRepository;
+        this.financeProfileRepository = financeProfileRepository;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SavingsOverviewResponse overview(UUID userId) {
+        FinanceProfile profile = financeProfileRepository.findByUserIdAndDeletedFalse(userId).orElse(null);
+        SavingsPosition.Snapshot snapshot = SavingsPosition.of(profile,
+                savingsRepository.findByUserIdAndDeletedFalseOrderByDateDesc(userId),
+                goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId));
+        BigDecimal income = profile == null ? null
+                : FinancialPlan.totalMonthlyIncome(profile.getMonthlyIncome(), profile.getAdditionalIncome());
+        SavingsOverviewResponse response = new SavingsOverviewResponse();
+        response.setAllocatedSavings(snapshot.allocated());
+        response.setUnallocatedLiquid(snapshot.unallocatedLiquid());
+        response.setEmergencyReserve(snapshot.emergencyReserve());
+        response.setTotalSavings(snapshot.totalSavings());
+        response.setInvestments(snapshot.investments());
+        response.setProtectedForNeeds(SavingsPosition.protectedForNeeds(income));
+        response.setAvailableForWants(SavingsPosition.availableFor(snapshot, income, false));
+        return response;
     }
 
     @Override
@@ -112,7 +139,7 @@ public class SavingsServiceImpl implements SavingsService {
         BigDecimal already = contributedExcept(userId, goal.getId(), ignoreEntryId);
         BigDecimal opening = GoalProgress.opening(goal);
         BigDecimal remaining = goal.getTarget().subtract(opening.add(already));
-        if (request.getAmount().compareTo(remaining) > 0) {
+        if (!FinancialPlan.withdrawalCategory(request.getCategory()) && request.getAmount().compareTo(remaining) > 0) {
             throw new ValidationException("This contribution exceeds the remaining target of " + FinancialPlan.rupee(remaining) + ".");
         }
         entry.setGoalId(goal.getId());
@@ -125,7 +152,7 @@ public class SavingsServiceImpl implements SavingsService {
                 continue;
             }
             if (goalId.equals(entry.getGoalId()) && entry.getAmount() != null) {
-                total = total.add(entry.getAmount());
+                total = total.add(GoalProgress.signed(entry));
             }
         }
         return total;
@@ -143,6 +170,9 @@ public class SavingsServiceImpl implements SavingsService {
                 savingsRepository.findByUserIdAndDeletedFalseOrderByDateDesc(userId), goalId);
         BigDecimal opening = goal.getOpeningSaved() == null ? BigDecimal.ZERO : goal.getOpeningSaved();
         BigDecimal total = opening.add(contributed);
+        if (total.signum() < 0) {
+            total = BigDecimal.ZERO;
+        }
         if (goal.getTarget() != null && total.compareTo(goal.getTarget()) > 0) {
             total = goal.getTarget();
         }

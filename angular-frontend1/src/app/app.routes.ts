@@ -16,7 +16,6 @@ import { AffordabilityComponent } from './component/Finance/affordability/afford
 import { BudgetComponent } from './component/Finance/budget/budget.component';
 import { DashboardComponent } from './component/Finance/dashboard.component';
 import { GoalsComponent } from './component/Finance/goals/goals.component';
-import { PlanningComponent } from './component/Finance/planning/planning.component';
 import { ReportsComponent } from './component/Finance/reports/reports.component';
 import { SavingsComponent } from './component/Finance/savings/savings.component';
 import { TransactionsComponent } from './component/Finance/transactions/transactions.component';
@@ -48,7 +47,7 @@ export const routes: Routes = [
       { path: 'transactions', component: TransactionsComponent, canActivate: [memberGuard], data: { title: 'Transactions' } },
       { path: 'budget', component: BudgetComponent, canActivate: [memberGuard], data: { title: 'Budget' } },
       { path: 'affordability', component: AffordabilityComponent, canActivate: [memberGuard], data: { title: 'Affordability' } },
-      { path: 'planning', component: PlanningComponent, canActivate: [memberGuard], data: { title: 'Financial planning' } },
+      { path: 'planning', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'notifications', component: NotificationsComponent, canActivate: [memberGuard], data: { title: 'Notifications' } },
       { path: 'news', component: NewsComponent, canActivate: [memberGuard], data: { title: 'News' } },
       { path: 'reports', component: ReportsComponent, canActivate: [memberGuard], data: { title: 'Reports' } },

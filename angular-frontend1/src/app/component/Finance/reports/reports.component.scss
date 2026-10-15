@@ -1,0 +1,19 @@
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.chip { border: 1px solid var(--border, #cbd5e1); background: #fff; color: var(--navy, #0b3a5c); padding: 7px 14px; border-radius: 999px; font-weight: 600; font-size: 0.88rem; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+.chip:hover { background: #f1f5f9; }
+.chip.active { background: #0f766e; border-color: #0f766e; color: #fff; }
+
+.report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.report-name { min-width: 200px; flex: 1 1 200px; padding: 7px 10px; border: 1px solid var(--border, #cbd5e1); border-radius: 8px; font: inherit; }
+
+.section-title { margin: 18px 0 8px; color: var(--navy, #0b3a5c); }
+.share-cell { min-width: 160px; }
+.share-cell .progress { margin-bottom: 2px; }
+.share-cell small { color: var(--muted, #64748b); }
+.row-actions { white-space: nowrap; }
+.negative { color: #b91c1c; }
+
+@media (max-width: 700px) {
+  .report-actions { width: 100%; }
+  .report-name { min-width: 0; }
+}

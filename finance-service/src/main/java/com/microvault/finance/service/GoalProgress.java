@@ -20,10 +20,19 @@ public final class GoalProgress {
         }
         for (SavingsEntry entry : entries) {
             if (entry.getGoalId() != null && goalId.equals(entry.getGoalId()) && entry.getAmount() != null) {
-                total = total.add(entry.getAmount());
+                total = total.add(signed(entry));
             }
         }
         return total;
+    }
+
+    /** A withdrawal linked to a goal takes money out of that goal; anything else adds to it. */
+    public static BigDecimal signed(SavingsEntry entry) {
+        if (entry == null || entry.getAmount() == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal amount = entry.getAmount().abs();
+        return FinancialPlan.withdrawalCategory(entry.getCategory()) ? amount.negate() : amount;
     }
 
     public static BigDecimal opening(Goal goal) {

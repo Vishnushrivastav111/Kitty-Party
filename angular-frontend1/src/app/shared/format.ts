@@ -6,14 +6,14 @@ export const CHART_COLORS = [
 ];
 
 export const TX_CATEGORIES = [
-  'Salary', 'Food', 'Rent', 'Transport', 'Shopping', 'Utilities', 'Healthcare', 'Entertainment', 'Other',
+  'Salary', 'Food', 'Rent', 'EMI / Loans', 'Transport', 'Shopping', 'Utilities', 'Healthcare', 'Entertainment', 'Other',
 ];
 
 export const GOAL_CATEGORIES = ['Personal', 'Emergency', 'Travel', 'Education', 'Home', 'Other'];
 
 export const SAVINGS_CATEGORIES = ['Opening', 'Deposit', 'Withdrawal', 'Interest', 'Transfer', 'Other'];
 
-export const BUDGET_CATEGORIES = ['Food', 'Rent', 'Transport', 'Shopping', 'Utilities', 'Healthcare', 'Entertainment', 'Other'];
+export const BUDGET_CATEGORIES = ['Food', 'Rent', 'EMI / Loans', 'Transport', 'Shopping', 'Utilities', 'Healthcare', 'Entertainment', 'Other'];
 
 export function todayISO(): string {
   const d = new Date();

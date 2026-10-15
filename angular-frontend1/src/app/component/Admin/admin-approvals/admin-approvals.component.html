@@ -18,21 +18,21 @@
   @else if (!page().rows.length) { <div class="empty-state">No approval requests found.</div> }
   @else {
     <div class="table-wrap">
-      <table>
-        <thead><tr><th>Requester</th><th>Type</th><th>Resource</th><th>Reason</th><th>Status</th><th>Requested</th><th>Action</th></tr></thead>
+      <table class="data-table">
+        <thead><tr><th>Requested by</th><th>Request</th><th>Transaction</th><th>Reason</th><th>Status</th><th>Requested on</th><th>Action</th></tr></thead>
         <tbody>
           @for (row of page().rows; track row.id) {
             <tr>
-              <td>{{ row.requesterName || row.requesterEmail || row.requesterId }}</td>
-              <td>{{ row.requestType }}</td>
-              <td>{{ row.resourceId }}</td>
+              <td>{{ row.requesterName || 'Unknown member' }}@if (row.requesterEmail) { <br /><small>{{ row.requesterEmail }}</small> }</td>
+              <td>{{ typeLabel(row.requestType) }}</td>
+              <td>{{ row.resourceLabel || 'Details not available' }}</td>
               <td>{{ row.reason || '—' }}</td>
-              <td>{{ row.status }}</td>
-              <td>{{ row.createdAt || '—' }}</td>
-              <td>
+              <td><span class="badge" [class.badge-warning]="row.status === 'pending'" [class.badge-success]="row.status === 'approved'" [class.badge-danger]="row.status === 'rejected'">{{ statusLabel(row.status) }}</span>@if (row.reviewerName) { <br /><small>by {{ row.reviewerName }}</small> }</td>
+              <td>{{ date(row.createdAt) }}</td>
+              <td class="row-actions">
                 @if (row.status === 'pending') {
-                  <button type="button" (click)="approve(row)">Approve</button>
-                  <button type="button" (click)="reject(row)">Reject</button>
+                  <button type="button" class="btn btn-primary btn-sm" (click)="approve(row)">Approve</button>
+                  <button type="button" class="btn btn-outline btn-sm" (click)="reject(row)">Reject</button>
                 } @else { <span>Reviewed</span> }
               </td>
             </tr>

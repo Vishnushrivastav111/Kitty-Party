@@ -10,7 +10,12 @@
           <h2>Sign in</h2>
           <p class="subtitle">Access your MicroVault workspace securely</p>
           <form (ngSubmit)="submit()" novalidate>
-            @if (formError()) { <p class="field-error" role="alert">{{ formError() }}</p> }
+            @if (notice() && !formError()) { <div class="alert-box info" role="status">{{ notice() }}</div> }
+            @if (blocked()) {
+              <div class="alert-box danger" role="alert"><strong><i class="fas fa-ban"></i> Account blocked</strong><br />{{ formError() }}</div>
+            } @else if (formError()) {
+              <p class="field-error" role="alert">{{ formError() }}</p>
+            }
             <div class="auth-field">
               <label for="email">Email address</label>
               <input id="email" type="email" name="email" [ngModel]="email" (ngModelChange)="onEmail($event)" placeholder="e.g. name@example.com" autocomplete="username"

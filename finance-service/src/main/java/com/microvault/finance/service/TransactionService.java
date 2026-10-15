@@ -14,4 +14,6 @@ public interface TransactionService {
     void softDelete(UUID userId, UUID id);
     void softDeleteAll(UUID userId);
     void softDeleteInternal(UUID userId, UUID id);
+    /** Looks up a transaction for an approval request, including one that was deleted after approval. */
+    TransactionResponse describeForApproval(UUID userId, UUID id);
 }

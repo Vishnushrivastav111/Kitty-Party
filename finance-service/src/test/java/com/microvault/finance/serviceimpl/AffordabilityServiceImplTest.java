@@ -4,6 +4,7 @@ import com.microvault.finance.dto.AffordabilityRequest;
 import com.microvault.finance.dto.AffordabilityResponse;
 import com.microvault.finance.entity.AffordabilityCheck;
 import com.microvault.finance.entity.FinanceProfile;
+import com.microvault.finance.entity.Goal;
 import com.microvault.finance.entity.SavingsEntry;
 import com.microvault.finance.exception.ResourceNotFoundException;
 import com.microvault.finance.exception.ValidationException;
@@ -115,11 +116,11 @@ class AffordabilityServiceImplTest {
         assertEquals(new BigDecimal("0.00"), response.getAvailable());
         assertEquals("Not currently affordable", response.getVerdict());
         assertEquals("danger", response.getLevel());
-        assertTrue(response.getPlan().get(0).contains("income 0.00"));
+        assertTrue(response.getPlan().get(0).contains("income on record is 0.00"));
     }
 
     @Test
-    void checkWithMissingProfileUsesOnlySavingsShare() {
+    void checkWithMissingProfileNeverCallsItAffordable() {
         when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
         stubSavings(savings("10000"));
 
@@ -131,8 +132,8 @@ class AffordabilityServiceImplTest {
     }
 
     @Test
-    void checkWithValidProfileAddsSurplusAndSavingsShare() {
-        stubProfile("50000", "20000");
+    void storedExpensesAndEmiAreNotUsedForAffordability() {
+        stubProfile("50000", "45000");
         stubSavings(savings("10000"));
 
         AffordabilityResponse response = affordabilityService.check(userId, request("Headphones", "3000", LocalDate.now()));
@@ -152,64 +153,21 @@ class AffordabilityServiceImplTest {
         AffordabilityResponse response = affordabilityService.check(userId, request("Desk", "100", LocalDate.now()));
 
         assertEquals(new BigDecimal("0.00"), response.getAvailable());
-        assertTrue(response.getPlan().get(0).contains("income 0.00"));
-    }
-
-    @Test
-    void checkWithNullExpensesTreatsExpensesAsZero() {
-        FinanceProfile profile = profile(new BigDecimal("4000"), null);
-        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
-        stubSavings();
-
-        AffordabilityResponse response = affordabilityService.check(userId, request("Desk", "400", LocalDate.now()));
-
-        assertEquals(new BigDecimal("0.00"), response.getAvailable());
-        assertEquals("Affordable with planning", response.getVerdict());
-    }
-
-    @Test
-    void checkWithNullIncomeAndNullExpensesHasNoCapacity() {
-        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile(null, null)));
-        stubSavings();
-
-        AffordabilityResponse response = affordabilityService.check(userId, request("Desk", "100", LocalDate.now()));
-
-        assertEquals(new BigDecimal("0.00"), response.getAvailable());
         assertEquals("Not currently affordable", response.getVerdict());
+        assertTrue(response.getSuggestion().contains("Add your monthly income"));
+        assertTrue(response.getPlan().get(0).contains("income on record is 0.00"));
     }
 
     @Test
-    void checkWithNegativeSurplusClampsSurplusToZeroButKeepsSavingsShare() {
-        stubProfile("20000", "30000");
+    void checkWithZeroIncomeAsksForIncomeEvenWithSavings() {
+        stubProfile("0", "0");
         stubSavings(savings("1000"));
 
         AffordabilityResponse response = affordabilityService.check(userId, request("TV", "150", LocalDate.now()));
 
         assertEquals(new BigDecimal("1000.00"), response.getAvailable());
         assertEquals("Not currently affordable", response.getVerdict());
-    }
-
-    @Test
-    void checkWithNegativeSurplusAndNoSavingsIsZeroCapacity() {
-        stubProfile("20000", "30000");
-        stubSavings();
-
-        AffordabilityResponse response = affordabilityService.check(userId, request("TV", "150", LocalDate.now()));
-
-        assertEquals(new BigDecimal("0.00"), response.getAvailable());
-        assertEquals("Not currently affordable", response.getVerdict());
         assertEquals("danger", response.getLevel());
-    }
-
-    @Test
-    void checkWithZeroSurplusIsZeroCapacity() {
-        stubProfile("20000", "20000");
-        stubSavings();
-
-        AffordabilityResponse response = affordabilityService.check(userId, request("TV", "150", LocalDate.now()));
-
-        assertEquals(new BigDecimal("0.00"), response.getAvailable());
-        assertEquals("Not currently affordable", response.getVerdict());
     }
 
     @Test
@@ -271,6 +229,40 @@ class AffordabilityServiceImplTest {
         assertEquals("warning", response.getLevel());
         assertTrue(response.isCanCreateGoal());
         assertTrue(response.getSuggestion().contains("3000.00"));
+    }
+
+    @Test
+    void budgetsAndActiveGoalsReduceTheMonthlyRoom() {
+        stubProfile("10000", "0");
+        stubSavings();
+        com.microvault.finance.entity.Budget rent = new com.microvault.finance.entity.Budget();
+        rent.setLimit(new BigDecimal("6000"));
+        com.microvault.finance.entity.Goal goal = new com.microvault.finance.entity.Goal();
+        goal.setStatus("active");
+        goal.setPlannedContribution(new BigDecimal("3000"));
+        when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of(rent));
+        when(goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)).thenReturn(List.of(goal));
+
+        AffordabilityResponse response = affordabilityService.check(userId, request("Item", "3000", LocalDate.now()));
+
+        // 10000 income - 6000 budgets - 3000 goals = 1000 a month, so 3 months to save 3000
+        assertEquals("Affordable with planning", response.getVerdict());
+        assertEquals(Integer.valueOf(3), response.getMonthsToSave());
+    }
+
+    @Test
+    void budgetsAboveIncomeBlockTheCheck() {
+        stubProfile("10000", "0");
+        stubSavings();
+        com.microvault.finance.entity.Budget rent = new com.microvault.finance.entity.Budget();
+        rent.setLimit(new BigDecimal("12000"));
+        when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of(rent));
+
+        AffordabilityResponse response = affordabilityService.check(userId, request("Item", "3000", LocalDate.now()));
+
+        assertEquals("Not currently affordable", response.getVerdict());
+        assertEquals("danger", response.getLevel());
+        assertTrue(response.getSuggestion().contains("Reduce a budget"));
     }
 
     @Test
@@ -357,6 +349,157 @@ class AffordabilityServiceImplTest {
         AffordabilityRequest request = request("Laptop", "1000", LocalDate.now());
         assertThrows(IllegalStateException.class, () -> affordabilityService.check(userId, request));
         verify(affordabilityRepository, never()).save(any());
+    }
+
+    // ---------------------------------------------------------------- need vs want savings rules
+
+    @Test
+    void wantWithSavingsBelowThreeTimesIncomeHasNothingAvailable() {
+        stubProfileWithSavings("50000", "100000", "0");
+        stubSavings();
+
+        AffordabilityResponse response = affordabilityService.check(userId, requestFor("Want", "10000"));
+
+        assertEquals(new BigDecimal("0.00"), response.getAvailable());
+        assertEquals("Affordable with planning", response.getVerdict());
+        assertEquals(new BigDecimal("150000.00"), response.getProtectedSavings());
+    }
+
+    @Test
+    void wantWithSavingsExactlyThreeTimesIncomeHasNothingAvailable() {
+        stubProfileWithSavings("50000", "150000", "0");
+        stubSavings();
+
+        AffordabilityResponse response = affordabilityService.check(userId, requestFor("Want", "1000"));
+
+        assertEquals(new BigDecimal("0.00"), response.getAvailable());
+        assertTrue(response.getShortfall().compareTo(new BigDecimal("1000")) == 0);
+    }
+
+    @Test
+    void wantWithSavingsAboveThreeTimesIncomeUsesOnlyTheExcess() {
+        stubProfileWithSavings("50000", "200000", "0");
+        stubSavings();
+
+        AffordabilityResponse affordable = affordabilityService.check(userId, requestFor("Want", "40000"));
+        assertEquals(new BigDecimal("50000.00"), affordable.getAvailable());
+        assertEquals("Affordable now", affordable.getVerdict());
+
+        AffordabilityResponse tooMuch = affordabilityService.check(userId, requestFor("Want", "60000"));
+        assertEquals(new BigDecimal("50000.00"), tooMuch.getAvailable());
+        assertEquals("Affordable with planning", tooMuch.getVerdict());
+        assertEquals(0, new BigDecimal("10000").compareTo(tooMuch.getShortfall()));
+        assertTrue(tooMuch.getSuggestion().contains("kept for needs and utilities"));
+    }
+
+    @Test
+    void wantNeverUsesTheEmergencyReserveInTheThreeTimesCalculation() {
+        // 230000 liquid, 30000 of it is the reserve -> 200000 eligible -> 50000 above 150000
+        stubProfileWithSavings("50000", "230000", "30000");
+        stubSavings();
+
+        AffordabilityResponse response = affordabilityService.check(userId, requestFor("Want", "45000"));
+
+        assertEquals(new BigDecimal("50000.00"), response.getAvailable());
+        assertEquals(new BigDecimal("30000.00"), response.getEmergencyReserve());
+        assertEquals(new BigDecimal("200000.00"), response.getUnallocatedLiquid());
+        assertEquals("Affordable now", response.getVerdict());
+    }
+
+    @Test
+    void needUsesAllEligibleSavingsButNotTheEmergencyReserve() {
+        stubProfileWithSavings("50000", "230000", "30000");
+        stubSavings();
+
+        AffordabilityResponse response = affordabilityService.check(userId, requestFor("Need", "150000"));
+
+        assertEquals(new BigDecimal("200000.00"), response.getAvailable());
+        assertEquals(new BigDecimal("0.00"), response.getProtectedSavings());
+        assertEquals("Affordable now", response.getVerdict());
+
+        AffordabilityResponse reserveWouldBeNeeded = affordabilityService.check(userId, requestFor("Need", "210000"));
+        assertEquals("Affordable with planning", reserveWouldBeNeeded.getVerdict());
+        assertEquals(0, new BigDecimal("10000").compareTo(reserveWouldBeNeeded.getShortfall()));
+    }
+
+    @Test
+    void goalAllocatedSavingsAreNotAvailableAndNothingIsCountedTwice() {
+        stubProfileWithSavings("50000", "100000", "20000");
+        Goal goal = new Goal();
+        goal.setStatus("active");
+        goal.setSaved(new BigDecimal("40000"));
+        when(goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)).thenReturn(List.of(goal));
+        SavingsEntry general = savings("5000");
+        SavingsEntry toGoal = savings("7000");
+        toGoal.setGoalId(UUID.randomUUID());
+        SavingsEntry emergency = savings("3000");
+        emergency.setCategory("Emergency");
+        SavingsEntry opening = savings("100000");
+        opening.setCategory("Opening");
+        SavingsEntry withdrawal = savings("2000");
+        withdrawal.setCategory("Withdrawal");
+        stubSavings(general, toGoal, emergency, opening, withdrawal);
+
+        AffordabilityResponse response = affordabilityService.check(userId, requestFor("Need", "1000"));
+
+        // 100000 - 20000 reserve + 5000 general - 2000 withdrawal; goal money, emergency entry and opening mirror excluded
+        assertEquals(new BigDecimal("83000.00"), response.getAvailable());
+        assertEquals(new BigDecimal("23000.00"), response.getEmergencyReserve());
+    }
+
+    @Test
+    void missingSavingsGiveZeroForBothPriorities() {
+        FinanceProfile profile = profile(new BigDecimal("50000"), BigDecimal.ZERO);
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+        stubSavings();
+
+        assertEquals(new BigDecimal("0.00"), affordabilityService.check(userId, requestFor("Need", "100")).getAvailable());
+        assertEquals(new BigDecimal("0.00"), affordabilityService.check(userId, requestFor("Want", "100")).getAvailable());
+    }
+
+    @Test
+    void zeroIncomeDoesNotBreakTheCalculationAndAsksForIncome() {
+        stubProfileWithSavings("0", "5000", "0");
+        stubSavings();
+
+        AffordabilityResponse want = affordabilityService.check(userId, requestFor("Want", "100"));
+
+        assertEquals(new BigDecimal("5000.00"), want.getAvailable());
+        assertEquals(new BigDecimal("0.00"), want.getProtectedSavings());
+        assertTrue(want.getSuggestion().contains("Add your monthly income"));
+    }
+
+    @Test
+    void decimalAmountsKeepTwoDecimalPlaces() {
+        stubProfileWithSavings("33333.33", "150000.50", "0");
+        stubSavings();
+
+        AffordabilityResponse response = affordabilityService.check(userId, requestFor("Want", "100"));
+
+        assertEquals(new BigDecimal("99999.99"), response.getProtectedSavings());
+        assertEquals(new BigDecimal("50000.51"), response.getAvailable());
+    }
+
+    @Test
+    void availableIsNeverNegativeAndInvestmentIsTreatedAsDiscretionary() {
+        stubProfileWithSavings("50000", "1000", "0");
+        stubSavings();
+
+        AffordabilityResponse response = affordabilityService.check(userId, requestFor("Investment", "100"));
+
+        assertEquals(new BigDecimal("0.00"), response.getAvailable());
+        assertEquals(new BigDecimal("150000.00"), response.getProtectedSavings());
+    }
+
+    @Test
+    void emergencyReserveLargerThanSavingsIsCappedAtTheSavings() {
+        stubProfileWithSavings("50000", "10000", "99999");
+        stubSavings();
+
+        AffordabilityResponse response = affordabilityService.check(userId, requestFor("Need", "100"));
+
+        assertEquals(new BigDecimal("0.00"), response.getAvailable());
+        assertEquals(new BigDecimal("10000.00"), response.getEmergencyReserve());
     }
 
     // ---------------------------------------------------------------- history
@@ -475,6 +618,19 @@ class AffordabilityServiceImplTest {
                 .thenReturn(Optional.of(profile(new BigDecimal(income), new BigDecimal(expenses))));
     }
 
+    private void stubProfileWithSavings(String income, String liquid, String reserve) {
+        FinanceProfile profile = profile(new BigDecimal(income), BigDecimal.ZERO);
+        profile.setCurrentSavings(new BigDecimal(liquid));
+        profile.setEmergencyReserve(new BigDecimal(reserve));
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+    }
+
+    private AffordabilityRequest requestFor(String priority, String amount) {
+        AffordabilityRequest request = request("Item", amount, LocalDate.now());
+        request.setPriority(priority);
+        return request;
+    }
+
     private void stubSavings(SavingsEntry... entries) {
         when(savingsRepository.findByUserIdAndDeletedFalseOrderByDateDesc(userId)).thenReturn(List.of(entries));
     }
@@ -497,7 +653,7 @@ class AffordabilityServiceImplTest {
         request.setItemName(item);
         request.setAmount(new BigDecimal(amount));
         request.setCheckDate(date);
-        request.setPriority("Want");
+        request.setPriority("Need");
         return request;
     }
 

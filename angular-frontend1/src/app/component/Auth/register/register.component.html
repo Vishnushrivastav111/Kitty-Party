@@ -54,10 +54,10 @@
               <span class="field-error" role="alert" [style.display]="errors()['confirmPassword'] ? 'block' : 'none'">{{ errors()['confirmPassword'] }}</span>
             </div>
             <div class="auth-field" style="display:flex;gap:8px;align-items:flex-start">
-              <input type="checkbox" id="terms" name="terms" [(ngModel)]="terms" style="width:auto;margin-top:4px" />
-              <label for="terms" style="font-weight:500">I accept the <a routerLink="/terms" style="color:var(--teal-dark)">Terms &amp; Conditions</a></label>
+              <input type="checkbox" id="terms" name="terms" [checked]="terms" (click)="onTermsClick($event)" style="width:auto;margin-top:4px" />
+              <label for="terms" style="font-weight:500">I accept the <a href="#" role="button" style="color:var(--teal-dark)" (click)="openTerms($event)">Terms &amp; Conditions</a></label>
             </div>
-            <span class="field-error" [style.display]="errors()['terms'] ? 'block' : 'none'">{{ errors()['terms'] }}</span>
+            <span class="field-error" role="alert" [style.display]="errors()['terms'] ? 'block' : 'none'">{{ errors()['terms'] }}</span>
             <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px" [disabled]="busy()">{{ busy() ? 'Creating…' : 'Create account' }}</button>
           </form>
           <p class="bottom-text">Already have an account? <a routerLink="/login">Login</a></p>
@@ -65,5 +65,6 @@
         </div>
       </section>
     </div>
+    <app-terms-dialog [open]="termsOpen()" (close)="termsOpen.set(false)" (accept)="acceptTerms()" />
     <app-site-footer />
   

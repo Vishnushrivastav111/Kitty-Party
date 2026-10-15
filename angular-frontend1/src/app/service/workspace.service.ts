@@ -13,6 +13,7 @@ import {
   Notice,
   Report,
   Saving,
+  SavingsOverview,
   Tx,
   VaultUser,
 } from '../model/models';
@@ -41,6 +42,7 @@ export class WorkspaceService {
   readonly transactions = signal<Tx[]>([]);
   readonly goals = signal<Goal[]>([]);
   readonly savings = signal<Saving[]>([]);
+  readonly savingsOverview = signal<SavingsOverview | null>(null);
   readonly budgets = signal<Budget[]>([]);
   readonly reports = signal<Report[]>([]);
   readonly affordChecks = signal<AffordCheck[]>([]);
@@ -86,6 +88,17 @@ export class WorkspaceService {
     this.refreshWarning.set('');
   }
 
+  /** Reloads only the notifications, so the unread count stays current without reloading everything. */
+  async refreshNotifications(): Promise<void> {
+    const rows = await this.api.get<Notice[]>('/notifications');
+    this.notifications.set(asArray<Notice>(rows));
+  }
+
+  /** Marks notifications read on screen straight away; the server call follows. */
+  markReadLocally(id?: string): void {
+    this.notifications.update((rows) => rows.map((row) => (!id || row.id === id ? { ...row, read: true } : row)));
+  }
+
   markDependentsStale(): void {
     this.affordabilityStale.set(true);
     this.planStale.set(true);
@@ -116,6 +129,15 @@ export class WorkspaceService {
     this.transactions.set(asArray<Tx>(data.transactions));
     this.goals.set(asArray<Goal>(data.goals));
     this.savings.set(asArray<Saving>(data.savings));
+    this.savingsOverview.set(data.savingsOverview ? {
+      allocatedSavings: num(data.savingsOverview.allocatedSavings),
+      unallocatedLiquid: num(data.savingsOverview.unallocatedLiquid),
+      emergencyReserve: num(data.savingsOverview.emergencyReserve),
+      totalSavings: num(data.savingsOverview.totalSavings),
+      investments: num(data.savingsOverview.investments),
+      protectedForNeeds: data.savingsOverview.protectedForNeeds == null ? null : num(data.savingsOverview.protectedForNeeds),
+      availableForWants: data.savingsOverview.availableForWants == null ? null : num(data.savingsOverview.availableForWants),
+    } : null);
     this.budgets.set(asArray<Budget>(data.budgets).map((row) => ({ ...row, status: budgetStatus(row) })));
     this.reports.set(asArray<Report>(data.reports));
     this.affordChecks.set(asArray<AffordCheck>(data.affordChecks));

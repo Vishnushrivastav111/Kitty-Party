@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, computed, inject } from '@angular/core';
 import { asArray } from '../shared/format';
 import { FeedbackHistory } from '../model/models';
 import { ApiService } from './api.service';
@@ -27,24 +27,39 @@ export class UserService {
     return this.workspace.refresh();
   }
 
+  /** Number of unread notifications, shown as the red circle in the sidebar. */
+  readonly unreadCount = computed(() => this.workspace.notifications().filter((row) => !row.read).length);
+
+  refreshNotifications(): Promise<void> {
+    return this.workspace.refreshNotifications();
+  }
+
   async markRead(id: string): Promise<void> {
-    await this.api.put(`/notifications/${id}/read`, {});
-    await this.workspace.refresh();
+    this.workspace.markReadLocally(id);
+    try {
+      await this.api.put(`/notifications/${id}/read`, {});
+    } finally {
+      await this.workspace.refreshNotifications().catch(() => undefined);
+    }
   }
 
   async markAllRead(): Promise<void> {
-    await this.api.put('/notifications/read-all', {});
-    await this.workspace.refresh();
+    this.workspace.markReadLocally();
+    try {
+      await this.api.put('/notifications/read-all', {});
+    } finally {
+      await this.workspace.refreshNotifications().catch(() => undefined);
+    }
   }
 
   async deleteNotice(id: string): Promise<void> {
     await this.api.delete(`/notifications/${id}`);
-    await this.workspace.refresh();
+    await this.workspace.refreshNotifications();
   }
 
   async clearNotices(): Promise<void> {
     await this.api.delete('/notifications');
-    await this.workspace.refresh();
+    await this.workspace.refreshNotifications();
   }
 
   async addFeedback(body: Record<string, unknown>): Promise<void> {

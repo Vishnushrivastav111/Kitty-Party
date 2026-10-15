@@ -221,6 +221,32 @@ a {
 
 .sidebar-nav .nav-glow { display: none; }
 
+/* Printing a report: show only the report itself */
+@media print {
+  .sidebar, .sidebar-overlay, .topbar, .no-print, app-site-footer { display: none !important; }
+  .main-content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+  .panel { box-shadow: none !important; border: 0 !important; }
+}
+
+/* Unread count shown as a red circle beside a menu item */
+.sidebar-nav .nav-badge {
+  margin-left: auto;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.25);
+  animation: badgePop 0.3s ease;
+}
+@keyframes badgePop { 0% { transform: scale(0.4); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .sidebar-nav .nav-badge { animation: none; } }
+
 .sidebar-nav a:hover,
 .sidebar-nav button.nav-link-btn:hover {
   color: #fff;

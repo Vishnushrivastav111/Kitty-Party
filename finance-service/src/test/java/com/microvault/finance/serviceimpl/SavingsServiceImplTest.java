@@ -42,6 +42,9 @@ class SavingsServiceImplTest {
     @Mock
     private GoalRepository goalRepository;
 
+    @Mock
+    private com.microvault.finance.repository.FinanceProfileRepository financeProfileRepository;
+
     @InjectMocks
     private SavingsServiceImpl savingsService;
 
@@ -221,6 +224,46 @@ class SavingsServiceImplTest {
         request.setAmount(new BigDecimal(amount));
         request.setDate(date);
         return request;
+    }
+
+    // ---------------------------------------------------------------- overview
+
+    @Test
+    void overviewReportsEachBucketOnceAndTheWantProtection() {
+        com.microvault.finance.entity.FinanceProfile profile = new com.microvault.finance.entity.FinanceProfile();
+        profile.setMonthlyIncome(new BigDecimal("50000"));
+        profile.setAdditionalIncome(new BigDecimal("10000"));
+        profile.setCurrentSavings(new BigDecimal("300000"));
+        profile.setEmergencyReserve(new BigDecimal("60000"));
+        profile.setInvestments(new BigDecimal("25000"));
+        com.microvault.finance.entity.Goal goal = new com.microvault.finance.entity.Goal();
+        goal.setSaved(new BigDecimal("40000"));
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+        when(savingsRepository.findByUserIdAndDeletedFalseOrderByDateDesc(userId)).thenReturn(List.of());
+        when(goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)).thenReturn(List.of(goal));
+
+        com.microvault.finance.dto.SavingsOverviewResponse overview = savingsService.overview(userId);
+
+        assertEquals(new BigDecimal("40000.00"), overview.getAllocatedSavings());
+        assertEquals(new BigDecimal("240000.00"), overview.getUnallocatedLiquid());
+        assertEquals(new BigDecimal("60000.00"), overview.getEmergencyReserve());
+        assertEquals(new BigDecimal("340000.00"), overview.getTotalSavings());
+        assertEquals(new BigDecimal("25000.00"), overview.getInvestments());
+        assertEquals(new BigDecimal("180000.00"), overview.getProtectedForNeeds());
+        assertEquals(new BigDecimal("60000.00"), overview.getAvailableForWants());
+    }
+
+    @Test
+    void overviewWithoutProfileIsZeroNotAnError() {
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
+        when(savingsRepository.findByUserIdAndDeletedFalseOrderByDateDesc(userId)).thenReturn(List.of());
+        when(goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)).thenReturn(List.of());
+
+        com.microvault.finance.dto.SavingsOverviewResponse overview = savingsService.overview(userId);
+
+        assertEquals(new BigDecimal("0.00"), overview.getTotalSavings());
+        assertEquals(new BigDecimal("0.00"), overview.getAvailableForWants());
+        assertEquals(new BigDecimal("0.00"), overview.getProtectedForNeeds());
     }
 
     private SavingsEntry stored(String title) {

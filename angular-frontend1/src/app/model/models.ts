@@ -15,9 +15,14 @@ export interface FinanceProfile {
   incomeSource?: string;
   monthlyIncome?: number;
   additionalIncome?: number;
-  otherCommitments?: number;
   emergencyReserve?: number;
   payCycle?: string;
+  /**
+   * Retired: expenses, loans/EMI, commitments, monthly budget and budget style are no longer
+   * collected in setup (category budgets own them). Old rows may still return these values;
+   * nothing in the app reads them.
+   */
+  otherCommitments?: number;
   monthlyExpenses?: number;
   expenseCategories?: unknown;
   hasLoan?: unknown;
@@ -126,6 +131,22 @@ export interface AffordCheck {
   monthlyInstallment?: number;
   totalRepayment?: number;
   canCreateGoal?: boolean;
+  /** Savings that were free to use for this check, excluding the emergency reserve and goal money. */
+  unallocatedLiquid?: number;
+  emergencyReserve?: number;
+  /** Savings kept back for needs (3 months of income). Only set for wants. */
+  protectedSavings?: number;
+}
+
+/** The complete savings picture, calculated once on the server. */
+export interface SavingsOverview {
+  allocatedSavings: number;
+  unallocatedLiquid: number;
+  emergencyReserve: number;
+  totalSavings: number;
+  investments: number;
+  protectedForNeeds: number | null;
+  availableForWants: number | null;
 }
 
 export interface Notice {
@@ -194,6 +215,7 @@ export interface DashboardPayload {
   transactions?: Tx[];
   goals?: Goal[];
   savings?: Saving[];
+  savingsOverview?: SavingsOverview | null;
   budgets?: Budget[];
   reports?: Report[];
   affordChecks?: AffordCheck[];

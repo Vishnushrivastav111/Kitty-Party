@@ -12,6 +12,7 @@ public class DashboardResponse {
     private JsonNode transactions;
     private JsonNode goals;
     private JsonNode savings;
+    private JsonNode savingsOverview;
     private JsonNode budgets;
     private JsonNode reports;
     private JsonNode affordChecks;
@@ -37,6 +38,8 @@ public class DashboardResponse {
     public void setGoals(JsonNode goals) { this.goals = goals; }
     public JsonNode getSavings() { return savings; }
     public void setSavings(JsonNode savings) { this.savings = savings; }
+    public JsonNode getSavingsOverview() { return savingsOverview; }
+    public void setSavingsOverview(JsonNode savingsOverview) { this.savingsOverview = savingsOverview; }
     public JsonNode getBudgets() { return budgets; }
     public void setBudgets(JsonNode budgets) { this.budgets = budgets; }
     public JsonNode getReports() { return reports; }

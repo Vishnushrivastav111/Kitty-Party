@@ -1,7 +1,7 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { AffordCheck, FinanceProfile, Report } from '../model/models';
 import { parseApiError } from '../shared/api-error';
-import { buildFinancialPosition } from '../shared/finance-rules';
+import { buildFinancialPosition, incomeCapacity } from '../shared/finance-rules';
 import { todayISO } from '../shared/format';
 import { ApiService } from './api.service';
 import { WorkspaceService } from './workspace.service';
@@ -27,9 +27,17 @@ export class FinanceService {
   private readonly workspace = inject(WorkspaceService);
   readonly loaded = this.workspace.loaded; readonly loading = this.workspace.loading; readonly error = this.workspace.error; readonly finance = this.workspace.finance;
   readonly setupSkipped = this.workspace.setupSkipped; readonly stats = this.workspace.stats; readonly transactions = this.workspace.transactions; readonly goals = this.workspace.goals;
-  readonly savings = this.workspace.savings; readonly budgets = this.workspace.budgets; readonly reports = this.workspace.reports; readonly affordChecks = this.workspace.affordChecks;
+  readonly savings = this.workspace.savings; readonly savingsOverview = this.workspace.savingsOverview; readonly budgets = this.workspace.budgets; readonly reports = this.workspace.reports; readonly affordChecks = this.workspace.affordChecks;
   readonly refreshWarning = this.workspace.refreshWarning; readonly affordabilityStale = this.workspace.affordabilityStale; readonly planStale = this.workspace.planStale;
-  readonly position = computed(() => buildFinancialPosition({ profileBudget: this.finance()?.monthlyBudget, categoryLimits: this.budgets().map((row) => Number(row.limit) || 0), transactions: this.transactions(), savings: this.savings(), goals: this.goals(), month: todayISO().slice(0, 7) }));
+  readonly position = computed(() => buildFinancialPosition({ categoryLimits: this.budgets().map((row) => Number(row.limit) || 0), transactions: this.transactions(), savings: this.savings(), goals: this.goals(), month: todayISO().slice(0, 7) }));
+  /** Income minus category budgets and active goal plans. Null until a profile with income exists. */
+  readonly capacity = computed(() => {
+    const profile = this.finance();
+    const income = (Number(profile?.monthlyIncome) || 0) + (Number(profile?.additionalIncome) || 0);
+    if (!profile || income <= 0) return null;
+    const active = this.goals().filter((goal) => (goal.status || '').toLowerCase() === 'active');
+    return incomeCapacity(income, this.budgets().map((row) => Number(row.limit) || 0), active.map((goal) => Number(goal.plannedContribution) || 0));
+  });
   load(): Promise<void> { return this.workspace.load(); }
   needsSetup(): boolean { return this.workspace.needsSetup(); }
   acknowledgePlan(): void { this.workspace.acknowledgePlan(); }

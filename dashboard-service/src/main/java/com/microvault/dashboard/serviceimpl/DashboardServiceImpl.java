@@ -43,6 +43,8 @@ public class DashboardServiceImpl implements DashboardService {
         response.setTransactions(array(finance, "transactions"));
         response.setGoals(array(finance, "goals"));
         response.setSavings(array(finance, "savings"));
+        JsonNode overview = finance.path("savingsOverview");
+        response.setSavingsOverview(overview.isMissingNode() || overview.isNull() ? null : overview);
         response.setBudgets(array(finance, "budgets"));
         response.setReports(array(finance, "reports"));
         response.setAffordChecks(array(finance, "affordChecks"));
@@ -58,6 +60,10 @@ public class DashboardServiceImpl implements DashboardService {
         response.setAdminInsights(insights.isMissingNode() || insights.isNull() ? null : insights);
         response.setStats(calculate(user.path("fullName").asText(""), response.getFinance(),
                 response.getTransactions(), response.getGoals(), response.getSavings(), response.getBudgets()));
+        if (response.getSavingsOverview() != null && response.getSavingsOverview().hasNonNull("totalSavings")) {
+            // One source of truth: the finance service's savings overview, not a re-sum of entries.
+            response.getStats().setTotalSavings(decimal(response.getSavingsOverview(), "totalSavings"));
+        }
         return response;
     }
 
@@ -80,28 +86,21 @@ public class DashboardServiceImpl implements DashboardService {
 
         BigDecimal spent = monthExpenses(transactions);
         BigDecimal income = decimal(finance, "monthlyIncome").add(decimal(finance, "additionalIncome"));
-        BigDecimal essential = decimal(finance, "monthlyExpenses");
-        BigDecimal emi = decimal(finance, "monthlyEmi");
-        BigDecimal other = decimal(finance, "otherCommitments");
+        // Expenses are this month's actual consumption. Setup no longer stores an expense estimate.
+        BigDecimal expenses = spent;
 
-        BigDecimal expenses = essential;
-        if (expenses.compareTo(BigDecimal.ZERO) == 0) {
-            expenses = spent;
-        }
-
+        // The monthly budget is the sum of category budget limits (setup no longer stores a separate total).
         BigDecimal monthBudget = BigDecimal.ZERO;
-        if (finance != null) {
-            monthBudget = decimal(finance, "monthlyBudget");
-        }
-        if (monthBudget.compareTo(BigDecimal.ZERO) == 0 && budgets != null && budgets.isArray()) {
+        if (budgets != null && budgets.isArray()) {
             for (JsonNode row : budgets) {
                 monthBudget = monthBudget.add(decimal(row, "limit"));
             }
         }
 
+        // Savings rate: share of monthly income not spent so far this month.
         int health = 0;
         if (income.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal left = income.subtract(expenses).subtract(emi).subtract(other);
+            BigDecimal left = income.subtract(expenses);
             if (left.compareTo(BigDecimal.ZERO) < 0) {
                 left = BigDecimal.ZERO;
             }

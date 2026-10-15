@@ -13,14 +13,14 @@ import java.util.Locale;
  * <p>Total monthly income is take-home pay plus other recurring income.
  * Savings balances and investments are stocks, not income.
  *
- * <p>Essential expenses, EMI, and other commitments are the recurring
- * obligations captured in financial setup. They are estimates of obligations,
- * not a second copy of expense transactions.
+ * <p>Financial setup no longer collects expenses, EMI, or other commitments.
+ * Category budgets are the user's expense plan (rent, food, EMI / Loans, ...),
+ * so they are subtracted once, as budget limits, and never as a second estimate.
  *
- * <p>Planning capacity = total monthly income − essential expenses − EMI − other commitments.
- * Budget capacity = planning capacity − planned contributions of active goals.
- * Remaining budget capacity = budget capacity − category limits already allocated.
- * Goal contribution capacity = planning capacity − category limits − other active goal plans.
+ * <p>Budget capacity = monthly income - planned contributions of active goals.
+ * Remaining budget capacity = budget capacity - category limits already allocated.
+ * Goal contribution capacity (and monthly room for a purchase or EMI)
+ * = monthly income - category limits - other active goal plans.
  *
  * <p>Category budget spending uses expense transactions in that category for the
  * current calendar month, minus refunds. Transfers, savings, and investments
@@ -45,25 +45,17 @@ public final class FinancialPlan {
         return money(takeHome).add(money(additionalIncome));
     }
 
-    public static BigDecimal planningCapacity(BigDecimal totalIncome, BigDecimal essentialExpenses,
-                                              BigDecimal emi, BigDecimal otherCommitments) {
-        return money(totalIncome)
-                .subtract(money(essentialExpenses))
-                .subtract(money(emi))
-                .subtract(money(otherCommitments));
-    }
-
-    public static BigDecimal budgetCapacity(BigDecimal planningCapacity, BigDecimal activeGoalContributions) {
-        return money(planningCapacity).subtract(money(activeGoalContributions));
+    public static BigDecimal budgetCapacity(BigDecimal monthlyIncome, BigDecimal activeGoalContributions) {
+        return money(monthlyIncome).subtract(money(activeGoalContributions));
     }
 
     public static BigDecimal remainingBudgetCapacity(BigDecimal budgetCapacity, BigDecimal allocatedLimits) {
         return money(budgetCapacity).subtract(money(allocatedLimits));
     }
 
-    public static BigDecimal goalContributionCapacity(BigDecimal planningCapacity, BigDecimal allocatedLimits,
+    public static BigDecimal goalContributionCapacity(BigDecimal monthlyIncome, BigDecimal allocatedLimits,
                                                       BigDecimal otherActiveGoalContributions) {
-        return money(planningCapacity)
+        return money(monthlyIncome)
                 .subtract(money(allocatedLimits))
                 .subtract(money(otherActiveGoalContributions));
     }
@@ -128,6 +120,20 @@ public final class FinancialPlan {
 
     public static boolean emergencyCategory(String category) {
         return category != null && "emergency".equalsIgnoreCase(category.trim());
+    }
+
+    /** Savings entry category for money taken out of general or goal savings. */
+    public static final String WITHDRAWAL_CATEGORY = "Withdrawal";
+
+    /** Savings entry category for money taken out of the emergency reserve. */
+    public static final String EMERGENCY_WITHDRAWAL_CATEGORY = "Emergency withdrawal";
+
+    public static boolean withdrawalCategory(String category) {
+        return category != null && WITHDRAWAL_CATEGORY.equalsIgnoreCase(category.trim());
+    }
+
+    public static boolean emergencyWithdrawalCategory(String category) {
+        return category != null && EMERGENCY_WITHDRAWAL_CATEGORY.equalsIgnoreCase(category.trim());
     }
 
     public static String rupee(BigDecimal amount) {

@@ -1,12 +1,17 @@
 
-    <div class="page-header"><h1>Savings</h1><p>Record deposits and withdrawals toward your vault</p></div>
+    <div class="page-header"><h1>Savings</h1><p>Your complete savings picture and every deposit or withdrawal</p></div>
     <div class="cards">
-      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Total savings</h3><h2>{{ money(vault.position().totalSavings) }}</h2><p>All savings entries, not a monthly balance.</p></div></div>
-      <div class="card"><div class="card-icon teal"><i class="fas fa-list"></i></div><div><h3>Recorded this month</h3><h2>{{ money(vault.position().monthlySavingsChange) }}</h2><p>Sum of this month's entries. Not a separate savings balance.</p></div></div>
-      <div class="card"><div><h3>Needed for budget overrun</h3><h2>{{ vault.position().savingsRequiredForOverrun == null ? '—' : money(vault.position().savingsRequiredForOverrun) }}</h2><p>Display only. No savings withdrawal is created.</p></div></div>
-      <div class="card"><div><h3>Emergency fund</h3><h2>—</h2><p>Not stored by the API, so available savings after a reserve are not calculated.</p></div></div>
+      <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Total savings</h3><h2>{{ overview() ? money(overview()!.totalSavings) : '—' }}</h2><p>Goal savings, available savings and emergency reserve together.</p></div></div>
+      <div class="card"><div class="card-icon teal"><i class="fas fa-bullseye"></i></div><div><h3>Allocated to goals</h3><h2>{{ overview() ? money(overview()!.allocatedSavings) : '—' }}</h2><p>Set aside for your goals.</p></div></div>
+      <div class="card"><div class="card-icon navy"><i class="fas fa-wallet"></i></div><div><h3>Unallocated liquid savings</h3><h2>{{ overview() ? money(overview()!.unallocatedLiquid) : '—' }}</h2><p>Savings you can use, after the emergency reserve.</p></div></div>
+      <div class="card"><div class="card-icon orange"><i class="fas fa-shield-halved"></i></div><div><h3>Emergency reserve</h3><h2>{{ overview() ? money(overview()!.emergencyReserve) : '—' }}</h2><p>Kept aside and never used for affordability.</p></div></div>
     </div>
-    <p style="color:var(--muted);margin-bottom:8px">Savings entries are not added to income, and expense transactions do not reduce this total.</p>
+    <div class="cards">
+      <div class="card"><div class="card-icon green"><i class="fas fa-chart-line"></i></div><div><h3>Investments &amp; other savings</h3><h2>{{ overview() ? money(overview()!.investments) : '—' }}</h2><p>Recorded in your financial setup.</p></div></div>
+      <div class="card"><div class="card-icon teal"><i class="fas fa-bag-shopping"></i></div><div><h3>Available for wants</h3><h2>{{ overview() && overview()!.availableForWants !== null ? money(overview()!.availableForWants) : '—' }}</h2><p>@if (overview() && overview()!.protectedForNeeds !== null) { Savings above {{ money(overview()!.protectedForNeeds) }}, which is 3 months of income kept for needs. } @else { Add your monthly income in financial setup to see this. }</p></div></div>
+      <div class="card"><div class="card-icon orange"><i class="fas fa-triangle-exclamation"></i></div><div><h3>Needed for budget overrun</h3><h2>{{ vault.position().savingsRequiredForOverrun == null ? '—' : money(vault.position().savingsRequiredForOverrun) }}</h2><p>What you would need to cover this month's overspending.</p></div></div>
+      <div class="card"><div class="card-icon navy"><i class="fas fa-list"></i></div><div><h3>Recorded this month</h3><h2>{{ money(vault.position().monthlySavingsChange) }}</h2><p>Deposits and withdrawals entered this month.</p></div></div>
+    </div>
     <app-graph-pager [index]="graphIndex()" [total]="2" [title]="graphIndex() === 0 ? 'Savings trend' : 'Savings by category'" (pageChange)="showGraph($event)">
       @if (!vault.savings().length) {
         <div class="empty-state">No savings entries are available for this graph.</div>

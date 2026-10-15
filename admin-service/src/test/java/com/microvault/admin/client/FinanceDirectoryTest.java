@@ -63,6 +63,30 @@ class FinanceDirectoryTest {
     }
 
     @Test
+    void describesTheTransactionBehindAnApprovalRequest() {
+        UUID user = UUID.randomUUID();
+        UUID transaction = UUID.randomUUID();
+        status = 200;
+        body = "{\"name\":\"Laptop bag\",\"category\":\"Shopping\",\"type\":\"expense\",\"amount\":2499,\"date\":\"2026-10-16\"}";
+
+        FinanceDirectory.TransactionSummary summary = directory.transaction(user, transaction);
+
+        assertEquals("Laptop bag", summary.getName());
+        assertEquals("Shopping", summary.getCategory());
+        assertEquals(0, new java.math.BigDecimal("2499").compareTo(summary.getAmount()));
+        assertEquals("/api/internal/transactions/" + transaction, seenPath.get());
+        assertEquals("internal-secret", seenToken.get());
+    }
+
+    @Test
+    void aTransactionThatCannotBeLoadedIsNullNotAnError() {
+        status = 404;
+        body = "{}";
+
+        assertEquals(null, directory.transaction(UUID.randomUUID(), UUID.randomUUID()));
+    }
+
+    @Test
     void anEmptyListStaysEmpty() {
         status = 200;
         body = "[]";

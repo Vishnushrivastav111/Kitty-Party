@@ -111,19 +111,12 @@ class FinanceProfileServiceImplTest {
         assertEquals("Salary", saved.getIncomeSource());
         assertEquals(new BigDecimal("50000"), saved.getMonthlyIncome());
         assertEquals("Monthly", saved.getPayCycle());
-        assertEquals(new BigDecimal("20000"), saved.getMonthlyExpenses());
-        assertEquals("Rent, Food", saved.getExpenseCategories());
-        assertTrue(saved.isHasLoan());
-        assertEquals("Home", saved.getLoanType());
-        assertEquals(new BigDecimal("900000"), saved.getLoanAmount());
-        assertEquals(new BigDecimal("8000"), saved.getMonthlyEmi());
-        assertEquals(LocalDate.of(2025, 1, 5), saved.getEmiStartDate());
+        assertEquals(new BigDecimal("5000"), saved.getAdditionalIncome());
         assertEquals(new BigDecimal("15000"), saved.getCurrentSavings());
+        assertEquals(new BigDecimal("6000"), saved.getEmergencyReserve());
         assertEquals("Bank", saved.getSavingsType());
         assertEquals(new BigDecimal("7000"), saved.getInvestments());
         assertEquals("Stocks", saved.getInvestmentTypes());
-        assertEquals(new BigDecimal("18000"), saved.getMonthlyBudget());
-        assertEquals("50-30-20", saved.getBudgetStyle());
         assertEquals(LocalDate.of(2026, 1, 1), saved.getSetupDate());
         verify(setupSkipStore).clear(userId);
 
@@ -132,20 +125,45 @@ class FinanceProfileServiceImplTest {
         assertEquals("Salary", response.getIncomeSource());
         assertEquals(new BigDecimal("50000"), response.getMonthlyIncome());
         assertEquals("Monthly", response.getPayCycle());
-        assertEquals(new BigDecimal("20000"), response.getMonthlyExpenses());
-        assertEquals("Rent, Food", response.getExpenseCategories());
-        assertTrue(response.isHasLoan());
-        assertEquals("Home", response.getLoanType());
-        assertEquals(new BigDecimal("900000"), response.getLoanAmount());
-        assertEquals(new BigDecimal("8000"), response.getMonthlyEmi());
-        assertEquals(LocalDate.of(2025, 1, 5), response.getEmiStartDate());
         assertEquals(new BigDecimal("15000"), response.getCurrentSavings());
         assertEquals("Bank", response.getSavingsType());
         assertEquals(new BigDecimal("7000"), response.getInvestments());
         assertEquals("Stocks", response.getInvestmentTypes());
-        assertEquals(new BigDecimal("18000"), response.getMonthlyBudget());
-        assertEquals("50-30-20", response.getBudgetStyle());
         assertEquals(LocalDate.of(2026, 1, 1), response.getSetupDate());
+    }
+
+    @Test
+    void saveIgnoresRetiredExpenseLoanAndBudgetFields() {
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
+        FinanceProfileRequest request = minimalRequest("1000");
+        request.setMonthlyExpenses(new BigDecimal("20000"));
+        request.setOtherCommitments(new BigDecimal("500"));
+        request.setHasLoan(BooleanNode.TRUE);
+        request.setLoanAmount(new BigDecimal("900000"));
+        request.setMonthlyEmi(new BigDecimal("8000"));
+        request.setMonthlyBudget(new BigDecimal("18000"));
+
+        service.saveForUser(userId, request);
+
+        FinanceProfile saved = captureSaved();
+        assertEquals(BigDecimal.ZERO, saved.getMonthlyExpenses());
+        assertEquals(BigDecimal.ZERO, saved.getOtherCommitments());
+        assertEquals(BigDecimal.ZERO, saved.getLoanAmount());
+        assertEquals(BigDecimal.ZERO, saved.getMonthlyEmi());
+        assertEquals(BigDecimal.ZERO, saved.getMonthlyBudget());
+        assertFalse(saved.isHasLoan());
+    }
+
+    @Test
+    void savingAgainKeepsStoredLegacyValuesUntouched() {
+        FinanceProfile existing = profile("1000", "20000", "5000");
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(existing));
+
+        service.saveForUser(userId, minimalRequest("2000"));
+
+        assertEquals(new BigDecimal("2000"), existing.getMonthlyIncome());
+        assertEquals(new BigDecimal("20000"), existing.getMonthlyExpenses());
+        assertEquals(new BigDecimal("5000"), existing.getMonthlyEmi());
     }
 
     @Test
@@ -186,7 +204,7 @@ class FinanceProfileServiceImplTest {
         assertNull(saved.getExpenseCategories());
         assertNull(saved.getInvestmentTypes());
         assertNull(saved.getLoanType());
-        assertNull(saved.getSetupDate());
+        assertEquals(LocalDate.now(), saved.getSetupDate());
         assertNull(saved.getEmiStartDate());
     }
 
@@ -233,10 +251,16 @@ class FinanceProfileServiceImplTest {
     }
 
     @Test
-    void saveRejectsNegativeExpenses() {
+    void saveRejectsZeroIncome() {
+        assertValidationMessage(minimalRequest("0"), "Monthly income must be greater than zero");
+    }
+
+    @Test
+    void saveRejectsEmergencyReserveAboveLiquidSavings() {
         FinanceProfileRequest request = minimalRequest("1000");
-        request.setMonthlyExpenses(new BigDecimal("-1"));
-        assertValidationMessage(request, "Monthly expenses cannot be negative");
+        request.setCurrentSavings(new BigDecimal("500"));
+        request.setEmergencyReserve(new BigDecimal("501"));
+        assertValidationMessage(request, "Emergency reserve cannot be larger than current liquid savings");
     }
 
     @Test
@@ -244,34 +268,6 @@ class FinanceProfileServiceImplTest {
         FinanceProfileRequest request = minimalRequest("1000");
         request.setCurrentSavings(new BigDecimal("-1"));
         assertValidationMessage(request, "Current savings cannot be negative");
-    }
-
-    @Test
-    void saveRejectsNegativeMonthlyBudget() {
-        FinanceProfileRequest request = minimalRequest("1000");
-        request.setMonthlyBudget(new BigDecimal("-1"));
-        assertValidationMessage(request, "Monthly budget cannot be negative");
-    }
-
-    @Test
-    void saveRejectsNegativeLoanAmount() {
-        FinanceProfileRequest request = minimalRequest("1000");
-        request.setLoanAmount(new BigDecimal("-1"));
-        assertValidationMessage(request, "Loan amount cannot be negative");
-    }
-
-    @Test
-    void saveRejectsNegativeMonthlyEmi() {
-        FinanceProfileRequest request = minimalRequest("1000");
-        request.setMonthlyEmi(new BigDecimal("-1"));
-        assertValidationMessage(request, "Monthly EMI cannot be negative");
-    }
-
-    @Test
-    void saveRejectsNegativeLoansEmiAlias() {
-        FinanceProfileRequest request = minimalRequest("1000");
-        request.setLoansEmi(new BigDecimal("-1"));
-        assertValidationMessage(request, "Monthly EMI cannot be negative");
     }
 
     @Test
@@ -304,12 +300,10 @@ class FinanceProfileServiceImplTest {
         when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
         FinanceProfileRequest request = minimalRequest("1000");
         request.setSetupDate("   ");
-        request.setEmiStartDate("");
 
         FinanceProfileResponse response = service.saveForUser(userId, request);
 
-        assertNull(response.getSetupDate());
-        assertNull(response.getEmiStartDate());
+        assertEquals(LocalDate.now(), response.getSetupDate());
     }
 
     @Test
@@ -321,94 +315,32 @@ class FinanceProfileServiceImplTest {
         verify(financeProfileRepository, never()).save(any());
     }
 
-    // ---------------------------------------------------------------- saveForUser: EMI alias
-
-    @Test
-    void saveUsesMonthlyEmiWhenBothEmiFieldsAreGiven() {
-        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
-        FinanceProfileRequest request = minimalRequest("1000");
-        request.setMonthlyEmi(new BigDecimal("300"));
-        request.setLoansEmi(new BigDecimal("999"));
-
-        assertEquals(new BigDecimal("300"), service.saveForUser(userId, request).getMonthlyEmi());
-    }
-
-    @Test
-    void saveFallsBackToLoansEmiWhenMonthlyEmiIsMissing() {
-        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
-        FinanceProfileRequest request = minimalRequest("1000");
-        request.setLoansEmi(new BigDecimal("450"));
-
-        assertEquals(new BigDecimal("450"), service.saveForUser(userId, request).getMonthlyEmi());
-    }
-
     // ---------------------------------------------------------------- saveForUser: JSON helpers
 
     @Test
-    void hasLoanIsFalseForNullJavaValueAndJsonNull() {
-        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
-
-        assertFalse(saveWithHasLoan(null).isHasLoan());
-        assertFalse(saveWithHasLoan(NullNode.getInstance()).isHasLoan());
-    }
-
-    @Test
-    void hasLoanReadsBooleanNodes() {
-        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
-
-        assertTrue(saveWithHasLoan(BooleanNode.TRUE).isHasLoan());
-        assertFalse(saveWithHasLoan(BooleanNode.FALSE).isHasLoan());
-    }
-
-    @Test
-    void hasLoanReadsYesAndTrueTextCaseInsensitively() {
-        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
-
-        assertTrue(saveWithHasLoan(TextNode.valueOf("Yes")).isHasLoan());
-        assertTrue(saveWithHasLoan(TextNode.valueOf("TRUE")).isHasLoan());
-        assertFalse(saveWithHasLoan(TextNode.valueOf("no")).isHasLoan());
-        assertFalse(saveWithHasLoan(TextNode.valueOf("")).isHasLoan());
-        assertFalse(saveWithHasLoan(IntNode.valueOf(1)).isHasLoan());
-    }
-
-    @Test
-    void listFieldsAreJoinedFromArrays() {
+    void investmentTypesAreJoinedFromArrays() {
         when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
         FinanceProfileRequest request = minimalRequest("1000");
-        ArrayNode categories = JSON.arrayNode().add("Rent").add("").add("Food");
-        request.setExpenseCategories(categories);
+        request.setInvestmentTypes(JSON.arrayNode().add("Stocks").add("").add("Gold"));
 
-        assertEquals("Rent, , Food", service.saveForUser(userId, request).getExpenseCategories());
+        assertEquals("Stocks, , Gold", service.saveForUser(userId, request).getInvestmentTypes());
     }
 
     @Test
-    void listFieldsIgnoreArraysWithOnlyEmptyItems() {
+    void investmentTypesIgnoreEmptyArraysNullAndBlankText() {
         when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
         FinanceProfileRequest request = minimalRequest("1000");
-        request.setExpenseCategories(JSON.arrayNode());
         request.setInvestmentTypes(JSON.arrayNode().add(""));
+        assertNull(service.saveForUser(userId, request).getInvestmentTypes());
 
-        FinanceProfileResponse response = service.saveForUser(userId, request);
-
-        assertNull(response.getExpenseCategories());
-        assertNull(response.getInvestmentTypes());
-    }
-
-    @Test
-    void listFieldsAcceptPlainTextAndIgnoreBlankOrNull() {
-        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
-        FinanceProfileRequest request = minimalRequest("1000");
-        request.setExpenseCategories(TextNode.valueOf("  Rent  "));
         request.setInvestmentTypes(NullNode.getInstance());
+        assertNull(service.saveForUser(userId, request).getInvestmentTypes());
 
-        FinanceProfileResponse response = service.saveForUser(userId, request);
+        request.setInvestmentTypes(TextNode.valueOf("   "));
+        assertNull(service.saveForUser(userId, request).getInvestmentTypes());
 
-        assertEquals("Rent", response.getExpenseCategories());
-        assertNull(response.getInvestmentTypes());
-
-        FinanceProfileRequest blank = minimalRequest("1000");
-        blank.setExpenseCategories(TextNode.valueOf("   "));
-        assertNull(service.saveForUser(userId, blank).getExpenseCategories());
+        request.setInvestmentTypes(TextNode.valueOf("  Gold  "));
+        assertEquals("Gold", service.saveForUser(userId, request).getInvestmentTypes());
     }
 
     @Test
@@ -449,7 +381,7 @@ class FinanceProfileServiceImplTest {
     // ---------------------------------------------------------------- summary
 
     @Test
-    void summaryComputesSurplusAndSavingsRate() {
+    void summaryIgnoresStoredExpensesAndEmi() {
         when(financeProfileRepository.findByUserIdAndDeletedFalse(userId))
                 .thenReturn(Optional.of(profile("50000", "20000", "5000")));
 
@@ -457,46 +389,64 @@ class FinanceProfileServiceImplTest {
 
         assertEquals(userId, summary.getUserId());
         assertEquals(new BigDecimal("50000"), summary.getMonthlyIncome());
-        assertEquals(new BigDecimal("20000"), summary.getMonthlyExpenses());
-        assertEquals(new BigDecimal("5000"), summary.getMonthlyEmi());
-        assertEquals(new BigDecimal("25000.00"), summary.getMonthlySurplus());
-        assertEquals(new BigDecimal("50.00"), summary.getSavingsRatePercent());
+        assertEquals(0, new BigDecimal("50000").compareTo(summary.getTotalMonthlyIncome()));
+        assertEquals(0, new BigDecimal("50000").compareTo(summary.getBudgetCapacity()));
+        assertEquals(0, new BigDecimal("50000").compareTo(summary.getRemainingBudgetCapacity()));
+        assertEquals(0, new BigDecimal("50000").compareTo(summary.getGoalContributionCapacity()));
     }
 
     @Test
-    void summaryClampsNegativeSurplusToZero() {
-        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId))
-                .thenReturn(Optional.of(profile("10000", "15000", "0")));
+    void summarySubtractsCategoryBudgetsAndActiveGoalPlans() {
+        FinanceProfile profile = profile("50000", "0", "0");
+        profile.setAdditionalIncome(new BigDecimal("10000"));
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+        GoalResponse active = new GoalResponse();
+        active.setStatus("active");
+        active.setPlannedContribution(new BigDecimal("5000"));
+        GoalResponse done = new GoalResponse();
+        done.setStatus("completed");
+        done.setPlannedContribution(new BigDecimal("9000"));
+        when(goalService.list(userId)).thenReturn(List.of(active, done));
+        BudgetResponse rent = new BudgetResponse();
+        rent.setLimit(new BigDecimal("20000"));
+        BudgetResponse food = new BudgetResponse();
+        food.setLimit(new BigDecimal("10000"));
+        when(budgetService.list(userId)).thenReturn(List.of(rent, food));
 
         MonthlySummaryResponse summary = service.summary(userId);
 
-        assertEquals(new BigDecimal("0.00"), summary.getMonthlySurplus());
-        assertEquals(new BigDecimal("0.00"), summary.getSavingsRatePercent());
+        assertEquals(0, new BigDecimal("60000").compareTo(summary.getTotalMonthlyIncome()));
+        assertEquals(0, new BigDecimal("30000").compareTo(summary.getAllocatedBudgets()));
+        assertEquals(0, new BigDecimal("5000").compareTo(summary.getPlannedGoalContributions()));
+        assertEquals(0, new BigDecimal("55000").compareTo(summary.getBudgetCapacity()));
+        assertEquals(0, new BigDecimal("25000").compareTo(summary.getRemainingBudgetCapacity()));
+        assertEquals(0, new BigDecimal("25000").compareTo(summary.getGoalContributionCapacity()));
     }
 
     @Test
-    void summaryWithZeroIncomeHasZeroRate() {
-        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId))
-                .thenReturn(Optional.of(profile("0", "0", "0")));
-
-        MonthlySummaryResponse summary = service.summary(userId);
-
-        assertEquals(BigDecimal.ZERO, summary.getSavingsRatePercent());
-        assertEquals(0, summary.getMonthlySurplus().signum());
-    }
-
-    @Test
-    void summaryTreatsNullAmountsAsZero() {
+    void summaryExplainsMissingIncome() {
         FinanceProfile profile = new FinanceProfile();
         profile.setUserId(userId);
         when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
 
         MonthlySummaryResponse summary = service.summary(userId);
 
-        assertEquals(BigDecimal.ZERO, summary.getMonthlyIncome());
-        assertEquals(BigDecimal.ZERO, summary.getMonthlyExpenses());
-        assertEquals(BigDecimal.ZERO, summary.getMonthlyEmi());
-        assertEquals(BigDecimal.ZERO, summary.getSavingsRatePercent());
+        assertEquals(0, summary.getTotalMonthlyIncome().signum());
+        assertEquals(1, summary.getInsights().size());
+        assertTrue(summary.getInsights().get(0).contains("Add your monthly income"));
+    }
+
+    @Test
+    void summaryCapsEmergencyReserveAtLiquidSavings() {
+        FinanceProfile profile = profile("50000", "0", "0");
+        profile.setCurrentSavings(new BigDecimal("1000"));
+        profile.setEmergencyReserve(new BigDecimal("4000"));
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+
+        MonthlySummaryResponse summary = service.summary(userId);
+
+        assertEquals(0, new BigDecimal("1000").compareTo(summary.getEmergencyReserve()));
+        assertEquals(0, summary.getUnallocatedLiquid().signum());
     }
 
     @Test
@@ -612,12 +562,6 @@ class FinanceProfileServiceImplTest {
         return captor.getValue();
     }
 
-    private FinanceProfileResponse saveWithHasLoan(JsonNode node) {
-        FinanceProfileRequest request = minimalRequest("1000");
-        request.setHasLoan(node);
-        return service.saveForUser(userId, request);
-    }
-
     private FinanceProfileRequest minimalRequest(String income) {
         FinanceProfileRequest request = new FinanceProfileRequest();
         request.setMonthlyIncome(new BigDecimal(income));
@@ -628,19 +572,12 @@ class FinanceProfileServiceImplTest {
         FinanceProfileRequest request = minimalRequest("50000");
         request.setIncomeSource("  Salary ");
         request.setPayCycle("Monthly");
-        request.setMonthlyExpenses(new BigDecimal("20000"));
-        request.setExpenseCategories(JSON.arrayNode().add("Rent").add("Food"));
-        request.setHasLoan(BooleanNode.TRUE);
-        request.setLoanType("Home");
-        request.setLoanAmount(new BigDecimal("900000"));
-        request.setMonthlyEmi(new BigDecimal("8000"));
-        request.setEmiStartDate("2025-01-05");
+        request.setAdditionalIncome(new BigDecimal("5000"));
         request.setCurrentSavings(new BigDecimal("15000"));
+        request.setEmergencyReserve(new BigDecimal("6000"));
         request.setSavingsType("Bank");
         request.setInvestments(new BigDecimal("7000"));
         request.setInvestmentTypes(JSON.arrayNode().add("Stocks"));
-        request.setMonthlyBudget(new BigDecimal("18000"));
-        request.setBudgetStyle("50-30-20");
         request.setSetupDate("2026-01-01");
         return request;
     }

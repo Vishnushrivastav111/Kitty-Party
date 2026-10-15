@@ -1,5 +1,5 @@
 
-    <div class="page-header"><h1>Affordability</h1><p>Check whether a purchase fits your income, expenses, and savings</p></div>
+    <div class="page-header"><h1>Affordability</h1><p>Check whether a purchase fits your income and savings</p></div>
     <div class="panel">
       <h2 style="margin-bottom:14px;color:var(--navy)">Can I afford this?</h2>
       @if (vault.affordabilityStale()) {
@@ -20,7 +20,9 @@
             <div class="form-group"><label for="emiMonths">EMI months</label><input id="emiMonths" type="number" name="emiMonths" min="1" [(ngModel)]="emiMonths" placeholder="Enter number of months" /></div>
             <div class="form-group"><label for="annualRate">Annual interest % (optional)</label><input id="annualRate" type="number" name="annualInterestPercent" min="0" [(ngModel)]="annualInterestPercent" placeholder="Enter annual interest, or 0" /></div>
           }
-          <div class="form-group"><label>Priority</label><select name="priority" [(ngModel)]="priority"><option>Need</option><option>Want</option><option>Investment</option></select></div>
+          <div class="form-group"><label>Priority</label><select name="priority" [(ngModel)]="priority"><option>Need</option><option>Want</option><option>Investment</option></select>
+            <p class="subtitle">{{ priority === 'Need' ? 'Needs can use all your available savings, except the emergency reserve.' : 'Wants and investments only use savings above 3 months of income. The emergency reserve is never used.' }}</p>
+          </div>
         </div>
         <div class="form-actions"><button class="btn btn-primary" [disabled]="busy()"><i class="fas fa-calculator"></i> Check affordability</button></div>
       </form>
@@ -30,8 +32,10 @@
         } @else {
         <div class="alert-box" [class.success]="row.level === 'success'" [class.warning]="row.level === 'warning'" [class.danger]="row.level === 'danger'" style="margin-top:16px">
           <strong>{{ row.verdict }}</strong><br />
-          {{ row.itemName }} · {{ money(row.amount) }} · spendable cash {{ money(row.available || row.availableAmount) }}
-          <p>This check does not create an expense or move money. Emergency reserves, goal savings, and investments are not treated as free to spend.</p>
+          {{ row.itemName }} · {{ money(row.amount) }} · available savings {{ money(row.available || row.availableAmount) }}
+          @if (row.protectedSavings) { <div>Kept for needs: {{ money(row.protectedSavings) }}</div> }
+          @if (row.emergencyReserve) { <div>Emergency reserve (not used): {{ money(row.emergencyReserve) }}</div> }
+          <p>This check does not spend or move any money.</p>
           @if (row.suggestion) { <div>{{ row.suggestion }}</div> }
           @if (row.level !== 'success') {
             <div class="form-actions"><button type="button" class="btn btn-primary btn-sm" (click)="createGoal()">Create a savings goal</button></div>

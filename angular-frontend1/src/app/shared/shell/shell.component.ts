@@ -1,5 +1,5 @@
 import { NgClass } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { ApiError } from '../../service/api.service';
@@ -24,6 +24,9 @@ interface NavSection {
 
 type NavItem = NavLink | NavSection;
 
+/** How often the unread count is re-checked while the page is open (changes made here update it at once). */
+const NOTIFICATION_POLL_MS = 10000;
+
 @Component({
   selector: 'app-shell',
   standalone: true,
@@ -31,7 +34,7 @@ type NavItem = NavLink | NavSection;
   templateUrl: './shell.component.html',
   styleUrl: './shell.component.scss',
 })
-export class ShellComponent implements OnInit {
+export class ShellComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -51,9 +54,19 @@ export class ShellComponent implements OnInit {
   });
   readonly initial = computed(() => (this.user()?.fullName || 'U').charAt(0).toUpperCase());
   readonly nav = computed(() => buildNav(this.role()));
+  readonly unread = this.vault.unreadCount;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly onVisible = () => {
+    if (document.visibilityState === 'visible') this.pollNotifications();
+  };
 
   ngOnInit(): void {
     this.syncTitle();
+    if (this.role() === ROLES.USER) {
+      this.pollTimer = setInterval(() => this.pollNotifications(), NOTIFICATION_POLL_MS);
+      document.addEventListener('visibilitychange', this.onVisible);
+      window.addEventListener('focus', this.onVisible);
+    }
     this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => {
       this.syncTitle();
       this.closeMenu();
@@ -65,6 +78,17 @@ export class ShellComponent implements OnInit {
         }
       });
     }
+  }
+
+  ngOnDestroy(): void {
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    document.removeEventListener('visibilitychange', this.onVisible);
+    window.removeEventListener('focus', this.onVisible);
+  }
+
+  private pollNotifications(): void {
+    if (!this.vault.loaded() || document.visibilityState !== 'visible') return;
+    this.vault.refreshNotifications().catch(() => undefined);
   }
 
   openMenu(): void {
@@ -131,7 +155,6 @@ function buildNav(role: string): NavItem[] {
     link('/transactions', 'Transactions', 'arrow-right-arrow-left', 'nav-sky', 3),
     link('/budget', 'Budget', 'chart-pie', 'nav-orange', 4),
     link('/affordability', 'Affordability', 'scale-balanced', 'nav-cyan', 5),
-    link('/planning', 'Planning', 'compass', 'nav-indigo', 6),
     link('/notifications', 'Notifications', 'bell', 'nav-rose', 7),
     link('/news', 'News', 'newspaper', 'nav-cyan', 7),
     link('/reports', 'Reports', 'file-lines', 'nav-indigo', 8),

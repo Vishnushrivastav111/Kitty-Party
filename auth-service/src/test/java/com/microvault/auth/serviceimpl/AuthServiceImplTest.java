@@ -266,7 +266,7 @@ class AuthServiceImplTest {
         ForbiddenException exception = assertThrows(ForbiddenException.class,
                 () -> service.login(loginRequest("asha@example.com", GOOD_PASSWORD)));
 
-        assertEquals("This account is inactive. Please contact an admin.", exception.getMessage());
+        assertEquals("Your account has been blocked. Please contact the administrator.", exception.getMessage());
         verify(tokenStore, never()).issue(any());
     }
 
@@ -292,6 +292,18 @@ class AuthServiceImplTest {
         assertEquals("9876543210", session.getPhone());
         assertEquals("admin", session.getRole());
         assertEquals("active", session.getStatus());
+    }
+
+    @Test
+    void sessionRejectsABlockedMemberSoTheirEarlierSignInStopsWorking() {
+        User blocked = storedUser("user");
+        blocked.setStatus("inactive");
+        when(tokenStore.requireUserId(TOKEN)).thenReturn(userId);
+        when(userRepository.findByIdAndDeletedFalse(userId)).thenReturn(Optional.of(blocked));
+
+        UnauthorizedException exception = assertThrows(UnauthorizedException.class, () -> service.session(TOKEN));
+
+        assertEquals("Login is required", exception.getMessage());
     }
 
     @Test
@@ -440,6 +452,16 @@ class AuthServiceImplTest {
         when(tokenStore.requireUserId("bad")).thenReturn(null);
 
         assertThrows(UnauthorizedException.class, () -> service.currentUser("bad"));
+    }
+
+    @Test
+    void currentUserRejectsABlockedMember() {
+        User blocked = storedUser("user");
+        blocked.setStatus("inactive");
+        when(tokenStore.requireUserId(TOKEN)).thenReturn(userId);
+        when(userRepository.findByIdAndDeletedFalse(userId)).thenReturn(Optional.of(blocked));
+
+        assertThrows(UnauthorizedException.class, () -> service.currentUser(TOKEN));
     }
 
     @Test

@@ -33,7 +33,7 @@ export function parseApiError(error: unknown): ApiError {
   if (isHttpFailure(error)) {
     const status = Number(error.status) || 0;
     if (status === 0) {
-      return new ApiError('The server could not be reached. Check your connection and try again.', 0);
+      return new ApiError('We could not connect right now. Check your connection and try again.', 0);
     }
     const parsed = readErrorBody(error.error);
     const message = parsed.message || emptyStatusMessage(status);
@@ -42,15 +42,15 @@ export function parseApiError(error: unknown): ApiError {
   if (error instanceof Error) {
     const message = sanitizeMessage(error.message);
     if (!message || /https?:\/\//i.test(error.message)) {
-      return new ApiError('The request failed before a server message was available.', 0);
+      return new ApiError('Something went wrong. Please try again.', 0);
     }
     return new ApiError(message, 0);
   }
-  return new ApiError('The request failed before a server message was available.', 0);
+  return new ApiError('Something went wrong. Please try again.', 0);
 }
 
 export function emptyStatusMessage(status: number): string {
-  return `The server returned status ${status} without a message.`;
+  return `Something went wrong (code ${status}). Please try again.`;
 }
 
 function isHttpFailure(error: unknown): error is { status: number; error: unknown; message?: string } {

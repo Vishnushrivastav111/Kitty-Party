@@ -58,7 +58,6 @@ export class SettingsComponent {
     this.busy.set(true);
     try {
       await this.auth.updateProfile({ fullName, email: this.email.trim(), phone: this.phone.trim() });
-      await this.dialog.notice('Profile saved', 'Settings');
     } catch (error) {
       const parsed = parseApiError(error);
       this.errors.set({ ...mergeApiFields(errors, parsed.fieldErrors), form: parsed.message });
@@ -77,7 +76,6 @@ export class SettingsComponent {
     try {
       await this.auth.changePassword({ currentPassword: this.currentPassword, newPassword: this.newPassword, confirmPassword: this.confirmPassword });
       this.currentPassword = this.newPassword = this.confirmPassword = '';
-      await this.dialog.notice('Password updated', 'Settings');
     } catch (error) {
       const parsed = parseApiError(error);
       this.passErrors.set({ ...errors, ...parsed.fieldErrors, current: parsed.fieldErrors['current'] || parsed.message });

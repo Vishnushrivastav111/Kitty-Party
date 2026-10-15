@@ -98,13 +98,14 @@ class DashboardServiceImplTest {
         DashboardStats stats = response.getStats();
         assertEquals("Aarav Sharma", stats.getFullName());
         assertEquals(0, new BigDecimal("1250.50").compareTo(stats.getTotalSavings()));
-        assertEquals(0, new BigDecimal("15000").compareTo(stats.getMonthBudget()));
+        // The monthly budget is the sum of category limits, not a stored profile total.
+        assertEquals(0, new BigDecimal("10").compareTo(stats.getMonthBudget()));
         assertEquals(0, new BigDecimal("300").compareTo(stats.getSpent()));
         assertEquals(0, new BigDecimal("50000").compareTo(stats.getIncome()));
-        assertEquals(0, new BigDecimal("20000").compareTo(stats.getExpenses()));
+        assertEquals(0, new BigDecimal("300").compareTo(stats.getExpenses()));
         assertEquals(1, stats.getActiveGoals());
-        // Savings rate is the share of income left after essential expenses, EMI, and other commitments.
-        assertEquals(60, stats.getHealth());
+        // Savings rate is the share of income not spent this month: (50000 - 300) / 50000 = 99.4 -> 99.
+        assertEquals(99, stats.getHealth());
     }
 
     @Test
@@ -170,6 +171,25 @@ class DashboardServiceImplTest {
     }
 
     @Test
+    void savingsOverviewIsPassedThroughAndIsTheSourceOfTotalSavings() throws Exception {
+        String finance = "{\"savings\":[{\"amount\":999}],"
+                + "\"savingsOverview\":{\"totalSavings\":340000.00,\"unallocatedLiquid\":240000.00,\"emergencyReserve\":60000.00}}";
+
+        DashboardResponse response = load(USER_JSON, finance, "{}");
+
+        assertEquals(0, new BigDecimal("240000.00").compareTo(response.getSavingsOverview().get("unallocatedLiquid").decimalValue()));
+        assertEquals(0, new BigDecimal("340000.00").compareTo(response.getStats().getTotalSavings()));
+    }
+
+    @Test
+    void missingOrNullSavingsOverviewIsNullAndEntriesStillSumTheTotal() throws Exception {
+        assertNull(load(USER_JSON, "{}", "{}").getSavingsOverview());
+        DashboardResponse response = load(USER_JSON, "{\"savings\":[{\"amount\":40}],\"savingsOverview\":null}", "{}");
+        assertNull(response.getSavingsOverview());
+        assertEquals(0, new BigDecimal("40").compareTo(response.getStats().getTotalSavings()));
+    }
+
+    @Test
     void missingUserNameBecomesAnEmptyString() throws Exception {
         String user = "{\"id\":\"" + ID + "\"}";
         when(authClient.currentUser("Bearer token")).thenReturn(json(user));
@@ -198,7 +218,7 @@ class DashboardServiceImplTest {
     }
 
     @Test
-    void profileMissingExpensesFallBackToTheTransactionTotal() throws Exception {
+    void expensesAreTheMonthsSpendingAndTheStoredProfileBudgetIsIgnored() throws Exception {
         String month = java.time.YearMonth.now() + "-02";
         String finance = "{\"finance\":{\"monthlyIncome\":1000,\"monthlyBudget\":500},"
                 + "\"transactions\":[{\"type\":\"expense\",\"amount\":250,\"date\":\"" + month + "\"}]}";
@@ -206,14 +226,17 @@ class DashboardServiceImplTest {
         DashboardStats stats = load(USER_JSON, finance, "{}").getStats();
 
         assertEquals(0, new BigDecimal("250").compareTo(stats.getExpenses()));
-        assertEquals(0, new BigDecimal("500").compareTo(stats.getMonthBudget()));
+        // a legacy monthlyBudget on the profile is no longer used and there are no category budgets
+        assertEquals(0, BigDecimal.ZERO.compareTo(stats.getMonthBudget()));
         // (1000 - 250) / 1000 = 75
         assertEquals(75, stats.getHealth());
     }
 
     @Test
     void anOverspentMemberHasAZeroSavingRate() throws Exception {
-        String finance = "{\"finance\":{\"monthlyIncome\":1000,\"monthlyExpenses\":5000,\"monthlyBudget\":100}}";
+        String month = java.time.YearMonth.now() + "-02";
+        String finance = "{\"finance\":{\"monthlyIncome\":1000},"
+                + "\"transactions\":[{\"type\":\"expense\",\"amount\":5000,\"date\":\"" + month + "\"}]}";
 
         DashboardStats stats = load(USER_JSON, finance, "{}").getStats();
 

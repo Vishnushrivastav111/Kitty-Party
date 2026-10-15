@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { LOGIN_NOTICE_KEY } from '../../service/session.interceptor';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../service/auth.service';
@@ -25,6 +26,13 @@ export class LoginComponent {
   readonly busy = signal(false);
   readonly errors = signal<Record<string, string>>({});
   readonly formError = signal('');
+  /** Shown when the member was signed out, for example because the account was blocked. */
+  readonly notice = signal(sessionStorage.getItem(LOGIN_NOTICE_KEY) || '');
+  readonly blocked = computed(() => /blocked/i.test(this.formError()));
+
+  constructor() {
+    sessionStorage.removeItem(LOGIN_NOTICE_KEY);
+  }
 
   onEmail(value: string): void {
     this.email = value;
@@ -48,7 +56,7 @@ export class LoginComponent {
     this.busy.set(true);
     const result = await this.auth.login(this.email.trim(), this.password);
     if (!result.ok || !result.user) {
-      this.formError.set(result.message || 'The server did not confirm the sign-in.');
+      this.formError.set(result.message || 'We could not sign you in. Please try again.');
       this.errors.update((current) => assignErrors(current, result.fieldErrors || {}));
       this.busy.set(false);
       return;

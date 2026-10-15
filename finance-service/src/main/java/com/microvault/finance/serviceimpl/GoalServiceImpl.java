@@ -166,7 +166,7 @@ public class GoalServiceImpl implements GoalService {
             BigDecimal shortfall = planned.subtract(room);
             throw new ValidationException("This goal needs " + FinancialPlan.rupee(planned)
                     + " per month, but only " + FinancialPlan.rupee(room)
-                    + " is available after obligations, budgets, and other active goals. Monthly shortfall is "
+                    + " is available after category budgets and other active goals. Monthly shortfall is "
                     + FinancialPlan.rupee(shortfall)
                     + ". Extend the deadline, reduce the target, pause another goal, or save this goal as a draft.");
         }
@@ -175,8 +175,6 @@ public class GoalServiceImpl implements GoalService {
 
     private BigDecimal goalCapacity(UUID userId, FinanceProfile profile, UUID ignoreGoalId) {
         BigDecimal income = FinancialPlan.totalMonthlyIncome(profile.getMonthlyIncome(), profile.getAdditionalIncome());
-        BigDecimal planning = FinancialPlan.planningCapacity(income, profile.getMonthlyExpenses(),
-                profile.getMonthlyEmi(), profile.getOtherCommitments());
         BigDecimal budgets = BigDecimal.ZERO;
         for (Budget budget : budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)) {
             if (budget.getLimit() != null) {
@@ -192,7 +190,7 @@ public class GoalServiceImpl implements GoalService {
                 otherGoals = otherGoals.add(existing.getPlannedContribution());
             }
         }
-        return FinancialPlan.goalContributionCapacity(planning, budgets, otherGoals);
+        return FinancialPlan.goalContributionCapacity(income, budgets, otherGoals);
     }
 
     private void enforceActiveLimit(UUID userId, UUID ignoreId) {
@@ -326,8 +324,8 @@ public class GoalServiceImpl implements GoalService {
         response.setContributionPeriods(goal.getDeadline() == null ? null : periods);
         response.setFeasible(feasible);
         response.setFeasibilityMessage(feasible
-                ? "The planned contribution fits the monthly capacity that remains after obligations and budgets."
-                : "The required contribution is above the monthly capacity that remains after obligations and budgets.");
+                ? "The planned contribution fits the monthly capacity that remains after category budgets."
+                : "The required contribution is above the monthly capacity that remains after category budgets.");
         return response;
     }
 

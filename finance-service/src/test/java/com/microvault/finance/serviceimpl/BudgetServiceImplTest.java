@@ -53,7 +53,7 @@ class BudgetServiceImplTest {
     private GoalRepository goalRepository;
 
     @Mock
-    private BudgetAlertService budgetAlertService;
+    private BudgetEffects budgetEffects;
 
     @InjectMocks
     private BudgetServiceImpl budgetService;

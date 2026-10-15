@@ -5,10 +5,13 @@ import { AuthService } from '../../../service/auth.service';
 import { DialogService } from '../../../shared/dialog.service';
 import { parseApiError } from '../../../shared/api-error';
 import { assignError } from '../../../shared/field-state';
-import { API_CAPABILITIES, planningCapacity, profileSurplus } from '../../../shared/finance-rules';
 import { asStringList, formatINR, homePath, num, ROLES, todayISO, Validators } from '../../../shared/format';
 import { FinanceService } from '../../../service/finance.service';
 
+/**
+ * Income-first setup. Only the monthly take-home income is required.
+ * Expenses, loans and EMI are planned as category budgets in the Budget section.
+ */
 @Component({
   selector: 'app-setup',
   standalone: true,
@@ -24,44 +27,26 @@ export class SetupComponent implements OnInit {
   readonly today = todayISO();
   readonly money = formatINR;
   readonly num = num;
-  readonly expenseOptions = ['Rent/Housing', 'Food', 'Transport', 'Utilities', 'Healthcare', 'Entertainment', 'Education', 'Shopping', 'Other'];
   readonly investOptions = ['Mutual Funds', 'Stocks', 'Gold', 'PPF/EPF', 'Real Estate', 'Crypto', 'Other'];
-  readonly expenseCats = new Set<string>();
   readonly investTypes = new Set<string>();
   incomeSource = '';
   monthlyIncome: number | null = null;
   additionalIncome: number | null = null;
   payCycle = '';
-  monthlyExpenses: number | null = null;
-  otherCommitments: number | null = null;
-  hasLoan = 'no';
-  loanType = '';
-  loanAmount = 0;
-  hasEmi = 'no';
-  loansEmi = 0;
-  emiStartDate = todayISO();
   currentSavings: number | null = null;
   emergencyReserve: number | null = null;
   savingsType = '';
-  investments = 0;
-  monthlyBudget: number | null = null;
-  budgetStyle = '';
+  investments: number | null = null;
   hasGoal = 'no';
   primaryGoal = '';
   goalCategory = '';
   goalTarget = 0;
   goalDate = todayISO();
-  hasPurchase = 'no';
-  purchaseItem = '';
-  purchaseAmount = 0;
-  purchasePriority = '';
-  setupDate = todayISO();
   confirmAccurate = false;
   readonly busy = signal(false);
   readonly errors = signal<Record<string, string>>({});
   readonly formError = signal('');
   readonly savedState = signal('');
-  readonly approvalSupported = API_CAPABILITIES.financialSetupApproval;
 
   async ngOnInit(): Promise<void> {
     if (this.auth.user()?.role !== ROLES.USER) {
@@ -74,65 +59,43 @@ export class SetupComponent implements OnInit {
     const existing = this.vault.finance();
     if (!existing) return;
     this.incomeSource = existing.incomeSource || '';
-    this.monthlyIncome = num(existing.monthlyIncome);
-    this.additionalIncome = num(existing.additionalIncome);
+    this.monthlyIncome = num(existing.monthlyIncome) || null;
+    this.additionalIncome = num(existing.additionalIncome) || null;
     this.payCycle = existing.payCycle || '';
-    this.monthlyExpenses = num(existing.monthlyExpenses);
-    this.otherCommitments = num(existing.otherCommitments);
-    this.loanType = existing.loanType || '';
-    this.loanAmount = num(existing.loanAmount);
-    this.loansEmi = num(existing.loansEmi || existing.monthlyEmi);
-    this.emiStartDate = (existing.emiStartDate || this.today).slice(0, 10);
-    this.currentSavings = num(existing.currentSavings);
-    this.emergencyReserve = num(existing.emergencyReserve);
+    this.currentSavings = num(existing.currentSavings) || null;
+    this.emergencyReserve = num(existing.emergencyReserve) || null;
     this.savingsType = existing.savingsType || '';
-    this.investments = num(existing.investments);
-    this.monthlyBudget = num(existing.monthlyBudget);
-    this.budgetStyle = existing.budgetStyle || '';
-    this.setupDate = (existing.setupDate || this.today).slice(0, 10);
-    asStringList(existing.expenseCategories).forEach((item) => this.expenseCats.add(item));
+    this.investments = num(existing.investments) || null;
     asStringList(existing.investmentTypes).forEach((item) => this.investTypes.add(item));
-    const loan = existing.hasLoan;
-    this.hasLoan = loan === true || loan === 'yes' ? 'yes' : 'no';
-    this.hasEmi = this.loansEmi > 0 ? 'yes' : 'no';
   }
 
   toggle(set: Set<string>, value: string): void {
     if (set.has(value)) set.delete(value); else set.add(value);
-    if (set === this.expenseCats) {
-      this.touch('expenseCats', this.expenseCats.size ? '' : 'Select at least one expense category');
-    }
   }
 
-  surplus(): number {
-    return profileSurplus(num(this.monthlyIncome) + num(this.additionalIncome), num(this.monthlyExpenses));
-  }
-
-  capacity(): number {
-    return planningCapacity(
-      num(this.monthlyIncome) + num(this.additionalIncome),
-      num(this.monthlyExpenses),
-      this.hasEmi === 'yes' ? num(this.loansEmi) : 0,
-      num(this.otherCommitments),
-    );
+  totalIncome(): number {
+    return num(this.monthlyIncome) + num(this.additionalIncome);
   }
 
   touch(field: string, message: string): void {
     this.errors.update((current) => assignError(current, field, message));
   }
-  incomeOk(value: unknown): string { return Validators.amount(value, 'Monthly income'); }
-  expenseOk(value: unknown): string { return Validators.amount(value, 'Monthly expenses'); }
-  savingsOk(value: unknown): string { return Validators.amount(value, 'Current savings'); }
-  budgetOk(value: unknown): string { return Validators.amount(value, 'Monthly budget'); }
-  emiOk(value: unknown): string { return Validators.amount(value, 'EMI'); }
+  incomeOk(value: unknown): string {
+    const base = Validators.amount(value, 'Monthly income');
+    if (base) return base;
+    return Number(value) > 0 ? '' : 'Monthly income must be greater than zero';
+  }
+  optionalAmountOk(value: unknown, label: string): string {
+    if (value === '' || value === null || value === undefined) return '';
+    return Validators.amount(value, label);
+  }
+  reserveOk(): string {
+    return num(this.emergencyReserve) > num(this.currentSavings) ? 'Emergency reserve cannot be larger than liquid savings' : '';
+  }
   choiceOk(value: string): string { return value ? '' : 'This field is required'; }
   goalTitleOk(value: string): string { return Validators.required(value, 'Goal title'); }
   goalDateOk(value: string): string { return Validators.dateNotPast(value, 'Deadline'); }
   goalTargetOk(value: unknown): string { return Number(value) > 0 ? '' : 'Target must be greater than zero'; }
-  purchaseOk(value: string): string { return Validators.required(value, 'Item'); }
-  purchaseAmountOk(value: unknown): string { return Number(value) > 0 ? '' : 'Cost must be greater than zero'; }
-  emiDateOk(value: string): string { return Validators.dateNotFuture(value, 'EMI start date'); }
-  setupDateOk(value: string): string { return Validators.dateNotFuture(value, 'As-of date'); }
 
   async skip(): Promise<void> {
     await this.vault.skipSetup();
@@ -141,34 +104,18 @@ export class SetupComponent implements OnInit {
 
   async submit(): Promise<void> {
     const errors: Record<string, string> = {
-      incomeSource: this.incomeSource ? '' : 'This field is required',
-      payCycle: this.payCycle ? '' : 'This field is required',
-      savingsType: this.savingsType ? '' : 'This field is required',
-      budgetStyle: this.budgetStyle ? '' : 'This field is required',
-      monthlyIncome: Validators.amount(this.monthlyIncome, 'Monthly income'),
-      monthlyExpenses: Validators.amount(this.monthlyExpenses, 'Monthly expenses'),
-      currentSavings: Validators.amount(this.currentSavings, 'Current savings'),
-      emergencyReserve: num(this.emergencyReserve) > num(this.currentSavings) ? 'Emergency reserve cannot be larger than liquid savings' : '',
-      monthlyBudget: Validators.amount(this.monthlyBudget, 'Monthly budget'),
-      expenseCats: this.expenseCats.size ? '' : 'Select at least one expense category',
-      setupDate: Validators.dateNotFuture(this.setupDate, 'As-of date'),
+      monthlyIncome: this.incomeOk(this.monthlyIncome),
+      additionalIncome: this.optionalAmountOk(this.additionalIncome, 'Other income'),
+      currentSavings: this.optionalAmountOk(this.currentSavings, 'Current savings'),
+      investments: this.optionalAmountOk(this.investments, 'Investments'),
+      emergencyReserve: this.optionalAmountOk(this.emergencyReserve, 'Emergency reserve') || this.reserveOk(),
       confirm: this.confirmAccurate ? '' : 'Please confirm accuracy',
     };
-    if (this.hasLoan === 'yes') errors['loanType'] = this.loanType ? '' : 'Select loan type';
-    if (this.hasEmi === 'yes') {
-      errors['loansEmi'] = Validators.amount(this.loansEmi, 'EMI');
-      errors['emiStartDate'] = Validators.dateNotFuture(this.emiStartDate, 'EMI start date');
-    }
     if (this.hasGoal === 'yes') {
       errors['primaryGoal'] = Validators.required(this.primaryGoal, 'Goal title');
       errors['goalCategory'] = this.goalCategory ? '' : 'Select category';
       errors['goalTarget'] = Number(this.goalTarget) > 0 ? '' : 'Target must be greater than zero';
       errors['goalDate'] = Validators.dateNotPast(this.goalDate, 'Deadline');
-    }
-    if (this.hasPurchase === 'yes') {
-      errors['purchaseItem'] = Validators.required(this.purchaseItem, 'Item');
-      errors['purchaseAmount'] = Number(this.purchaseAmount) > 0 ? '' : 'Cost must be greater than zero';
-      errors['purchasePriority'] = this.purchasePriority ? '' : 'Select priority';
     }
     this.errors.set(errors);
     this.formError.set('');
@@ -180,28 +127,14 @@ export class SetupComponent implements OnInit {
         monthlyIncome: num(this.monthlyIncome),
         additionalIncome: num(this.additionalIncome),
         payCycle: this.payCycle,
-        monthlyExpenses: num(this.monthlyExpenses),
-        otherCommitments: num(this.otherCommitments),
-        expenseCategories: [...this.expenseCats],
-        hasLoan: this.hasLoan,
-        loanType: this.loanType,
-        loanAmount: num(this.loanAmount),
-        loansEmi: this.hasEmi === 'yes' ? num(this.loansEmi) : 0,
-        monthlyEmi: this.hasEmi === 'yes' ? num(this.loansEmi) : 0,
-        emiStartDate: this.emiStartDate,
         currentSavings: num(this.currentSavings),
         emergencyReserve: num(this.emergencyReserve),
         savingsType: this.savingsType,
         investments: num(this.investments),
         investmentTypes: [...this.investTypes],
-        monthlyBudget: num(this.monthlyBudget),
-        budgetStyle: this.budgetStyle,
-        setupDate: this.setupDate,
+        setupDate: this.today,
       });
       const followUp: string[] = [];
-      if (num(this.emergencyReserve) > num(this.currentSavings)) {
-        followUp.push('Emergency reserve cannot be larger than current liquid savings.');
-      }
       if (this.hasGoal === 'yes' && this.primaryGoal.trim()) {
         try {
           await this.vault.addGoal({
@@ -216,16 +149,13 @@ export class SetupComponent implements OnInit {
           followUp.push(parseApiError(error).message);
         }
       }
-      if (this.hasPurchase === 'yes' && this.purchaseItem.trim()) {
-        try {
-          await this.vault.checkAfford({ itemName: this.purchaseItem.trim(), amount: num(this.purchaseAmount) || 1, checkDate: this.setupDate, priority: this.purchasePriority || 'Want' });
-        } catch (error) {
-          followUp.push(parseApiError(error).message);
-        }
-      }
-      this.savedState.set('Financial profile saved. Budgets, goals, and affordability now use this plan.');
-      if (followUp.length) await this.dialog.notice(followUp.join(' '), 'Profile saved');
-      await this.router.navigateByUrl('/dashboard');
+      const needsBudgets = this.vault.budgets().length === 0;
+      this.savedState.set('Financial profile saved.');
+      const message = needsBudgets
+        ? 'Your income is saved. Next, add category budgets (rent, food, EMI / Loans and others) in the Budget section. Together with your goal contributions they are checked against your income.'
+        : '';
+      if (followUp.length || message) await this.dialog.notice([...followUp, message].filter(Boolean).join(' '), 'Profile saved');
+      await this.router.navigateByUrl(needsBudgets ? '/budget' : '/dashboard');
     } catch (error) {
       const parsed = parseApiError(error);
       this.formError.set(parsed.message);

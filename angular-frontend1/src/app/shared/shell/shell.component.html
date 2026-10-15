@@ -30,6 +30,9 @@
                   <a [routerLink]="item.path" (click)="closeMenu()">
                     <span class="nav-ico"><i [class]="'fas fa-' + item.icon"></i></span>
                     <span>{{ item.label }}</span>
+                    @if (item.path === '/notifications' && unread() > 0) {
+                      <span class="nav-badge" role="status" [attr.aria-label]="unread() + ' unread notifications'">{{ unread() > 99 ? '99+' : unread() }}</span>
+                    }
                   </a>
                 </li>
               }

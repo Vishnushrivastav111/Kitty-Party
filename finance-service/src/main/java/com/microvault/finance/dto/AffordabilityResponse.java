@@ -25,6 +25,19 @@ public class AffordabilityResponse {
     private BigDecimal totalRepayment;
     private String paymentMethod;
     private boolean canCreateGoal;
+    /** Unallocated liquid savings before any protection. Set only for a fresh check. */
+    private BigDecimal unallocatedLiquid;
+    /** Emergency reserve, never used for a purchase. Set only for a fresh check. */
+    private BigDecimal emergencyReserve;
+    /** Savings kept back for needs and utilities (three months of income). Zero for a need. */
+    private BigDecimal protectedSavings;
+
+    public BigDecimal getUnallocatedLiquid() { return unallocatedLiquid; }
+    public void setUnallocatedLiquid(BigDecimal unallocatedLiquid) { this.unallocatedLiquid = unallocatedLiquid; }
+    public BigDecimal getEmergencyReserve() { return emergencyReserve; }
+    public void setEmergencyReserve(BigDecimal emergencyReserve) { this.emergencyReserve = emergencyReserve; }
+    public BigDecimal getProtectedSavings() { return protectedSavings; }
+    public void setProtectedSavings(BigDecimal protectedSavings) { this.protectedSavings = protectedSavings; }
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }

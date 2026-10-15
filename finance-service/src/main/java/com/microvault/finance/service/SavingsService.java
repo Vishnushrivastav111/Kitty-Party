@@ -1,5 +1,6 @@
 package com.microvault.finance.service;
 
+import com.microvault.finance.dto.SavingsOverviewResponse;
 import com.microvault.finance.dto.SavingsRequest;
 import com.microvault.finance.dto.SavingsResponse;
 
@@ -10,6 +11,7 @@ public interface SavingsService {
     SavingsResponse create(UUID userId, SavingsRequest request);
     SavingsResponse update(UUID userId, UUID id, SavingsRequest request);
     List<SavingsResponse> list(UUID userId);
+    SavingsOverviewResponse overview(UUID userId);
     void softDelete(UUID userId, UUID id);
     void softDeleteAll(UUID userId);
 }

@@ -1,86 +1,132 @@
-    <div class="page-header"><h1>Reports</h1><p>Generate period summaries from the report API and review matching transactions</p></div>
-    <div class="panel">
-      <h2 style="margin-bottom:14px;color:var(--navy)">Generate report</h2>
-      <p style="color:var(--muted);margin-bottom:12px">The report API stores a name and totals every income and expense transaction between the dates. Category and transaction type are not accepted by that API, so they filter only the loaded transaction list.</p>
-      <form (ngSubmit)="generate()" novalidate>
-        @if (formError()) { <p class="field-error" role="alert">{{ formError() }}</p> }
-        <div class="form-grid">
-          <div class="form-group"><label for="reportName">Report name</label><input id="reportName" name="reportName" [(ngModel)]="reportName" placeholder="e.g. October household review" maxlength="80" /></div>
-          <div class="form-group"><label for="reportFrom">Start date</label><input id="reportFrom" type="date" name="from" [(ngModel)]="fromDate" [max]="today" (ngModelChange)="touchDates()" /><span class="field-error" role="alert" [style.display]="errors()['from'] ? 'block' : 'none'">{{ errors()['from'] }}</span></div>
-          <div class="form-group"><label for="reportTo">End date</label><input id="reportTo" type="date" name="to" [(ngModel)]="toDate" [max]="today" (ngModelChange)="touchDates()" /><span class="field-error" role="alert" [style.display]="errors()['to'] ? 'block' : 'none'">{{ errors()['to'] }}</span></div>
-          <div class="form-group"><label for="reportType">Transaction type</label>
-            <select id="reportType" name="txType" [(ngModel)]="txType">
-              <option value="all">All types</option>
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-            </select>
-          </div>
-          <div class="form-group"><label for="reportCategory">Category</label>
-            <select id="reportCategory" name="category" [(ngModel)]="category">
-              <option value="all">All categories</option>
-              @for (item of categories; track item) { <option [value]="item">{{ item }}</option> }
-            </select>
-          </div>
+
+    <div class="page-header no-print"><h1>Reports</h1><p>See where your money went in any period, then save, download or print it</p></div>
+
+    <div class="panel no-print">
+      <h2 style="margin-bottom:12px;color:var(--navy)">Choose a period</h2>
+      <div class="chips" role="group" aria-label="Quick periods">
+        @for (item of presets; track item.id) {
+          <button type="button" class="chip" [class.active]="preset() === item.id" (click)="choosePreset(item.id)">{{ item.label }}</button>
+        }
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label for="reportFrom">From</label><input id="reportFrom" type="date" [ngModel]="from()" (ngModelChange)="setFrom($event)" [max]="today" /><span class="field-error" role="alert" [style.display]="errors().from ? 'block' : 'none'">{{ errors().from }}</span></div>
+        <div class="form-group"><label for="reportTo">To</label><input id="reportTo" type="date" [ngModel]="to()" (ngModelChange)="setTo($event)" [max]="today" /><span class="field-error" role="alert" [style.display]="errors().to ? 'block' : 'none'">{{ errors().to }}</span></div>
+        <div class="form-group"><label for="reportType">Show</label>
+          <select id="reportType" [ngModel]="txType()" (ngModelChange)="setType($event)">
+            <option value="all">Income and expenses</option>
+            <option value="income">Income only</option>
+            <option value="expense">Expenses only</option>
+          </select>
         </div>
-        <div class="form-actions"><button class="btn btn-primary" [disabled]="busy()">{{ busy() ? 'Generating…' : 'Generate' }}</button></div>
-      </form>
-      @if (preview(); as row) {
-        <div class="alert-box info" style="margin-top:14px">
-          <strong>Server report · {{ row.type }}</strong><br />
-          {{ date(row.fromDate) }} to {{ date(row.toDate) }}<br />
-          Income {{ money(row.income) }} · Expense {{ money(row.expense) }} · Net {{ money(row.net) }} · {{ row.txCount }} transactions
-          <p>These figures are the values returned by the report API for the date range. They include income and expense together, including every category.</p>
-          @if (applied(); as criteria) {
-            <p>Loaded rows below use {{ criteria.from }} to {{ criteria.to }}, type {{ criteria.type }}, category {{ criteria.category }}.</p>
-          }
-          <div class="form-actions" style="margin-top:10px">
-            <button type="button" class="btn btn-outline btn-sm" (click)="download(row, 'txt')">Download TXT</button>
-            <button type="button" class="btn btn-outline btn-sm" (click)="download(row, 'csv')">Download CSV</button>
-          </div>
+        <div class="form-group"><label for="reportCategory">Category</label>
+          <select id="reportCategory" [ngModel]="category()" (ngModelChange)="setCategory($event)">
+            <option value="all">All categories</option>
+            @for (item of categories; track item) { <option [value]="item">{{ item }}</option> }
+          </select>
         </div>
-        <h3 style="margin:16px 0 8px;color:var(--navy)">Loaded transactions for the criteria above</h3>
-        @if (!matched().length) {
-          <div class="empty-state">No loaded transactions match the selected type, category, and dates.</div>
-        } @else {
-          <p>Income {{ money(matchedTotals().income) }} · Expense {{ money(matchedTotals().expense) }} · {{ matchedTotals().count }} rows. These sums use only the loaded transactions that match the filters.</p>
+      </div>
+    </div>
+
+    <div class="panel report-sheet">
+      <div class="panel-header">
+        <h2>{{ periodTitle() }}</h2>
+        <div class="report-actions no-print">
+          <input type="text" class="report-name" placeholder="Name to save as (optional)" aria-label="Report name" maxlength="80" [ngModel]="reportName()" (ngModelChange)="reportName.set($event)" />
+          <button type="button" class="btn btn-primary btn-sm" (click)="save()" [disabled]="busy() || !valid() || !analysis().count"><i class="fas fa-floppy-disk"></i> {{ busy() ? 'Saving…' : 'Save report' }}</button>
+          <button type="button" class="btn btn-outline btn-sm" (click)="downloadCurrent('csv')" [disabled]="!rows().length"><i class="fas fa-file-csv"></i> Spreadsheet</button>
+          <button type="button" class="btn btn-outline btn-sm" (click)="downloadCurrent('txt')" [disabled]="!rows().length"><i class="fas fa-file-lines"></i> Summary</button>
+          <button type="button" class="btn btn-outline btn-sm" (click)="print()" [disabled]="!rows().length"><i class="fas fa-print"></i> Print</button>
+        </div>
+      </div>
+      @if (formError()) { <p class="field-error" role="alert">{{ formError() }}</p> }
+
+      @if (!valid()) {
+        <div class="empty-state">Fix the dates above to see your report.</div>
+      } @else if (!analysis().count) {
+        <div class="empty-state">No transactions match this period. Try a longer period or <a routerLink="/transactions">add a transaction</a>.</div>
+      } @else {
+        <div class="cards">
+          <div class="card"><div class="card-icon green"><i class="fas fa-arrow-down"></i></div><div><h3>Income</h3><h2>{{ money(analysis().income) }}</h2><p>Money received in this period.</p></div></div>
+          <div class="card"><div class="card-icon orange"><i class="fas fa-arrow-up"></i></div><div><h3>Expenses</h3><h2>{{ money(analysis().expense) }}</h2><p>Money spent in this period.</p></div></div>
+          <div class="card"><div class="card-icon teal"><i class="fas fa-scale-balanced"></i></div><div><h3>Net saved</h3><h2 [class.negative]="analysis().net < 0">{{ money(analysis().net) }}</h2><p>{{ analysis().net < 0 ? 'You spent more than you earned.' : 'Income left after expenses.' }}</p></div></div>
+          <div class="card"><div class="card-icon navy"><i class="fas fa-percent"></i></div><div><h3>Savings rate</h3><h2>{{ analysis().savingsRate === null ? '—' : analysis().savingsRate + '%' }}</h2><p>{{ analysis().savingsRate === null ? 'No income recorded in this period.' : 'Share of income you kept.' }}</p></div></div>
+        </div>
+        <div class="cards">
+          <div class="card"><div class="card-icon navy"><i class="fas fa-list"></i></div><div><h3>Transactions</h3><h2>{{ analysis().count }}</h2><p>Across {{ analysis().days }} {{ analysis().days === 1 ? 'day' : 'days' }}.</p></div></div>
+          <div class="card"><div class="card-icon orange"><i class="fas fa-fire"></i></div><div><h3>Top spending</h3><h2>{{ analysis().topCategory ? analysis().topCategory!.category : '—' }}</h2><p>{{ analysis().topCategory ? money(analysis().topCategory!.amount) + ' spent here.' : 'No expenses in this period.' }}</p></div></div>
+          <div class="card"><div class="card-icon teal"><i class="fas fa-calendar-day"></i></div><div><h3>Average per day</h3><h2>{{ money(analysis().averageDailySpend) }}</h2><p>Average daily spending.</p></div></div>
+          <div class="card"><div class="card-icon green"><i class="fas fa-piggy-bank"></i></div><div><h3>Savings today</h3><h2>{{ overview() ? money(overview()!.totalSavings) : '—' }}</h2><p>{{ overview() ? money(overview()!.emergencyReserve) + ' is your emergency reserve.' : 'Complete financial setup to see this.' }}</p></div></div>
+        </div>
+
+        <div class="no-print">
+          <app-graph-pager [index]="graphIndex()" [total]="2" [title]="graphIndex() === 0 ? 'Where your money went' : 'Income and expenses over time'" (pageChange)="showGraph($event)">
+            @if (graphIndex() === 0 && !analysis().categories.length) {
+              <div class="empty-state">There are no expenses in this period to chart.</div>
+            } @else {
+              <div class="chart-wrap"><canvas #stage></canvas></div>
+            }
+          </app-graph-pager>
+        </div>
+
+        @if (analysis().categories.length) {
+          <h3 class="section-title">Spending by category</h3>
           <div class="table-wrap">
             <table class="data-table">
-              <thead><tr><th>Date</th><th>Name</th><th>Category</th><th>Type</th><th>Amount</th></tr></thead>
+              <thead><tr><th>Category</th><th>Spent</th><th>Share of spending</th></tr></thead>
               <tbody>
-                @for (item of matched(); track item.id) {
-                  <tr><td>{{ date(item.date) }}</td><td>{{ item.name }}</td><td>{{ item.category }}</td><td>{{ item.type }}</td><td>{{ money(item.amount) }}</td></tr>
+                @for (item of analysis().categories; track item.category; let i = $index) {
+                  <tr>
+                    <td>{{ item.category }}</td>
+                    <td>{{ money(item.amount) }}</td>
+                    <td class="share-cell"><div class="progress" [ngClass]="'c' + ((i % 6) + 1)"><span [style.width.%]="item.percent"></span></div><small>{{ item.percent }}%</small></td>
+                  </tr>
                 }
               </tbody>
             </table>
           </div>
         }
+
+        <h3 class="section-title">Transactions in this report</h3>
+        <div class="toolbar no-print">
+          <input type="search" placeholder="Search these transactions..." aria-label="Search transactions in this report" [ngModel]="search()" (ngModelChange)="setSearch($event)" />
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Name</th><th>Category</th><th>Type</th><th>Amount</th></tr></thead>
+            <tbody>
+              @if (!page().rows.length) { <tr><td colspan="5" class="empty-state">No transactions match your search</td></tr> }
+              @for (item of page().rows; track item.id) {
+                <tr><td>{{ date(item.date) }}</td><td>{{ item.name }}</td><td>{{ item.category }}</td><td><span class="badge" [class.badge-success]="item.type === 'income'" [class.badge-warning]="item.type !== 'income'">{{ item.type }}</span></td><td>{{ money(item.amount) }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="no-print"><app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" /></div>
       }
     </div>
-    <div class="panel">
-      <div class="panel-header"><h2>Report history</h2></div>
+
+    <div class="panel no-print">
+      <div class="panel-header"><h2>Saved reports</h2></div>
       <div class="toolbar">
-        <input type="search" placeholder="Search reports" aria-label="Search reports" [ngModel]="search()" (ngModelChange)="search.set($event); pageNo.set(1)" />
-        <select [ngModel]="filterType()" (ngModelChange)="filterType.set($event); pageNo.set(1)" aria-label="Filter report type">
-          <option value="">All types</option><option>Summary</option><option>Transactions</option><option>Savings</option><option>Budget</option>
-        </select>
+        <input type="search" placeholder="Search saved reports" aria-label="Search saved reports" [ngModel]="historySearch()" (ngModelChange)="historySearch.set($event); historyPageNo.set(1)" />
       </div>
       <div class="table-wrap">
         <table class="data-table color-table">
-          <thead><tr><th>Generated</th><th>Type</th><th>Period</th><th>Income</th><th>Expense</th><th>Net</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Saved on</th><th>Name</th><th>Period</th><th>Income</th><th>Expenses</th><th>Net</th><th>Actions</th></tr></thead>
           <tbody>
-            @if (!page().rows.length) { <tr><td colspan="7" class="empty-state">No reports yet</td></tr> }
-            @for (row of page().rows; track row.id) {
+            @if (!history().rows.length) { <tr><td colspan="7" class="empty-state">No saved reports yet. Choose a period above and press Save report.</td></tr> }
+            @for (row of history().rows; track row.id) {
               <tr>
                 <td>{{ date(row.createdAt) }}</td><td>{{ row.type }}</td><td>{{ date(row.fromDate) }} – {{ date(row.toDate) }}</td>
                 <td>{{ money(row.income) }}</td><td>{{ money(row.expense) }}</td><td>{{ money(row.net) }}</td>
-                <td>
-                  <button class="btn btn-outline btn-sm" type="button" (click)="showSaved(row)">View</button>
-                  <button class="btn btn-outline btn-sm" type="button" (click)="download(row, 'txt')">TXT</button>
+                <td class="row-actions">
+                  <button class="btn btn-outline btn-sm" type="button" (click)="open(row)" aria-label="Open report"><i class="fas fa-eye"></i></button>
+                  <button class="btn btn-outline btn-sm" type="button" (click)="downloadSaved(row, 'csv')" aria-label="Download spreadsheet"><i class="fas fa-file-csv"></i></button>
                 </td>
               </tr>
             }
           </tbody>
         </table>
       </div>
-      <app-pager [page]="page().page" [totalPages]="page().totalPages" [total]="page().total" (pageChange)="pageNo.set($event)" />
+      <app-pager [page]="history().page" [totalPages]="history().totalPages" [total]="history().total" (pageChange)="historyPageNo.set($event)" />
     </div>

@@ -21,16 +21,15 @@ import java.util.UUID;
 @Service
 @Transactional
 public class TransactionServiceImpl implements TransactionService {
-<<<<<<< HEAD
 
     private static final Logger log = LoggerFactory.getLogger(TransactionServiceImpl.class);
 
     private final TransactionRepository transactionRepository;
-    private final BudgetAlertService budgetAlertService;
+    private final BudgetEffects budgetEffects;
 
-    public TransactionServiceImpl(TransactionRepository transactionRepository, BudgetAlertService budgetAlertService) {
+    public TransactionServiceImpl(TransactionRepository transactionRepository, BudgetEffects budgetEffects) {
         this.transactionRepository = transactionRepository;
-        this.budgetAlertService = budgetAlertService;
+        this.budgetEffects = budgetEffects;
     }
 
     @Override
@@ -58,27 +57,14 @@ public class TransactionServiceImpl implements TransactionService {
         TransactionResponse response = toResponse(transactionRepository.save(transaction));
         refreshAlerts(userId);
         return response;
-=======
-    private final TransactionRepository transactionRepository;
-    public TransactionServiceImpl(TransactionRepository transactionRepository) { this.transactionRepository = transactionRepository; }
+    }
 
-    @Override public TransactionResponse create(UUID userId, TransactionRequest request) {
-        validate(request); Transaction transaction = new Transaction(); transaction.setId(UUID.randomUUID()); transaction.setUserId(userId); copy(request, transaction);
-        LocalDateTime now = LocalDateTime.now(); transaction.setCreatedAt(now); transaction.setUpdatedAt(now); transaction.setDeleted(false);
-        return toResponse(transactionRepository.save(transaction));
-    }
-    @Override public TransactionResponse update(UUID userId, UUID id, TransactionRequest request) {
-        validate(request); Transaction transaction = load(userId, id); copy(request, transaction); transaction.setUpdatedAt(LocalDateTime.now());
-        return toResponse(transactionRepository.save(transaction));
->>>>>>> e3a6be877db2c875f31b250f1d1c1047a6edc9c6
-    }
     @Override @Transactional(readOnly = true) public TransactionResponse get(UUID userId, UUID id) { return toResponse(load(userId, id)); }
     @Override @Transactional(readOnly = true) public List<TransactionResponse> list(UUID userId) {
         List<TransactionResponse> rows = new ArrayList<>();
         for (Transaction transaction : transactionRepository.findByUserIdAndDeletedFalseOrderByDateDescCreatedAtDesc(userId)) rows.add(toResponse(transaction));
         return rows;
     }
-<<<<<<< HEAD
 
     @Override
     public void softDelete(UUID userId, UUID id) {
@@ -95,33 +81,31 @@ public class TransactionServiceImpl implements TransactionService {
             transactionRepository.save(transaction);
         }
         refreshAlerts(userId);
-=======
-    @Override public void softDelete(UUID userId, UUID id) { Transaction transaction = load(userId, id); markDeleted(transaction); transactionRepository.save(transaction); }
-    @Override public void softDeleteAll(UUID userId) {
-        for (Transaction transaction : transactionRepository.findByUserIdAndDeletedFalseOrderByDateDescCreatedAtDesc(userId)) { markDeleted(transaction); transactionRepository.save(transaction); }
->>>>>>> e3a6be877db2c875f31b250f1d1c1047a6edc9c6
     }
     @Override public void softDeleteInternal(UUID userId, UUID id) { softDelete(userId, id); }
 
+    @Override
+    @Transactional(readOnly = true)
+    public TransactionResponse describeForApproval(UUID userId, UUID id) {
+        return transactionRepository.findById(id)
+                .filter(transaction -> userId.equals(transaction.getUserId()))
+                .map(this::toResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+    }
+
     private void validate(TransactionRequest request) {
         String type = request.getType() == null ? "" : request.getType().trim().toLowerCase();
-<<<<<<< HEAD
         if (!"income".equals(type) && !"expense".equals(type) && !"refund".equals(type) && !"transfer".equals(type)) {
             throw new ValidationException("Type must be income, expense, refund, or transfer");
         }
         if (request.getDate().isAfter(LocalDate.now())) {
             throw new ValidationException("Date cannot be in the future");
         }
-=======
-        if (!"income".equals(type) && !"expense".equals(type)) throw new ValidationException("Type must be income or expense");
-        if (request.getDate().isAfter(LocalDate.now())) throw new ValidationException("Date cannot be in the future");
->>>>>>> e3a6be877db2c875f31b250f1d1c1047a6edc9c6
     }
     private void copy(TransactionRequest request, Transaction transaction) {
         transaction.setName(request.getName().trim()); transaction.setCategory(request.getCategory().trim()); transaction.setType(request.getType().trim().toLowerCase());
         transaction.setAmount(request.getAmount()); transaction.setDate(request.getDate()); transaction.setNote(request.getNote());
     }
-<<<<<<< HEAD
 
     private Transaction load(UUID userId, UUID id) {
         return transactionRepository.findByIdAndUserIdAndDeletedFalse(id, userId)
@@ -130,7 +114,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     private void refreshAlerts(UUID userId) {
         try {
-            budgetAlertService.evaluate(userId);
+            budgetEffects.refreshAfterCommit(userId);
         } catch (RuntimeException exception) {
             log.warn("Budget alerts were not refreshed: {}", exception.getMessage());
         }
@@ -143,10 +127,6 @@ public class TransactionServiceImpl implements TransactionService {
         transaction.setUpdatedAt(now);
     }
 
-=======
-    private Transaction load(UUID userId, UUID id) { return transactionRepository.findByIdAndUserIdAndDeletedFalse(id, userId).orElseThrow(() -> new ResourceNotFoundException("Transaction not found")); }
-    private void markDeleted(Transaction transaction) { LocalDateTime now = LocalDateTime.now(); transaction.setDeleted(true); transaction.setDeletedAt(now); transaction.setUpdatedAt(now); }
->>>>>>> e3a6be877db2c875f31b250f1d1c1047a6edc9c6
     private TransactionResponse toResponse(Transaction transaction) {
         TransactionResponse response = new TransactionResponse(); response.setId(transaction.getId()); response.setName(transaction.getName()); response.setCategory(transaction.getCategory()); response.setType(transaction.getType()); response.setAmount(transaction.getAmount()); response.setDate(transaction.getDate()); response.setNote(transaction.getNote()); return response;
     }

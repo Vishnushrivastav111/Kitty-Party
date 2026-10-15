@@ -1,6 +1,8 @@
 package com.microvault.finance.controller;
 
+import com.microvault.finance.dto.TransactionResponse;
 import com.microvault.finance.exception.UnauthorizedException;
+import org.springframework.web.bind.annotation.GetMapping;
 import com.microvault.finance.service.TransactionService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,15 @@ public class TransactionApprovalInternalController {
                                                  @Value("${microvault.internal.token}") String internalToken) {
         this.transactionService = transactionService;
         this.internalToken = internalToken;
+    }
+
+    @GetMapping("/{id}")
+    public TransactionResponse describe(
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
+            @PathVariable UUID id,
+            @RequestParam UUID userId) {
+        if (token == null || !token.equals(internalToken)) throw new UnauthorizedException("Internal access is required");
+        return transactionService.describeForApproval(userId, id);
     }
 
     @DeleteMapping("/{id}")

@@ -1,5 +1,6 @@
 package com.microvault.finance.controller;
 
+import com.microvault.finance.dto.SavingsOverviewResponse;
 import com.microvault.finance.dto.SavingsRequest;
 import com.microvault.finance.dto.SavingsResponse;
 import com.microvault.finance.service.RequestUser;
@@ -39,6 +40,12 @@ public class SavingsController {
     @Operation(summary = "List savings")
     public List<SavingsResponse> list(@RequestHeader(value = "Authorization", required = false) String authorization) {
         return savingsService.list(requestUser.requireUser(authorization));
+    }
+
+    @GetMapping("/overview")
+    @Operation(summary = "Savings overview: allocated, unallocated, emergency reserve")
+    public SavingsOverviewResponse overview(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        return savingsService.overview(requestUser.requireUser(authorization));
     }
 
     @PostMapping

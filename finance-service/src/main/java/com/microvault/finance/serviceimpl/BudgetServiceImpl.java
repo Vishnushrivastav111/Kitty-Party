@@ -38,18 +38,18 @@ public class BudgetServiceImpl implements BudgetService {
     private final TransactionRepository transactionRepository;
     private final FinanceProfileRepository financeProfileRepository;
     private final GoalRepository goalRepository;
-    private final BudgetAlertService budgetAlertService;
+    private final BudgetEffects budgetEffects;
 
     public BudgetServiceImpl(BudgetRepository budgetRepository,
                              TransactionRepository transactionRepository,
                              FinanceProfileRepository financeProfileRepository,
                              GoalRepository goalRepository,
-                             BudgetAlertService budgetAlertService) {
+                             BudgetEffects budgetEffects) {
         this.budgetRepository = budgetRepository;
         this.transactionRepository = transactionRepository;
         this.financeProfileRepository = financeProfileRepository;
         this.goalRepository = goalRepository;
-        this.budgetAlertService = budgetAlertService;
+        this.budgetEffects = budgetEffects;
     }
 
     @Override
@@ -123,15 +123,16 @@ public class BudgetServiceImpl implements BudgetService {
         FinanceProfile profile = financeProfileRepository.findByUserIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new ValidationException("Complete financial setup before allocating a budget."));
         BigDecimal income = FinancialPlan.totalMonthlyIncome(profile.getMonthlyIncome(), profile.getAdditionalIncome());
-        BigDecimal planning = FinancialPlan.planningCapacity(income, profile.getMonthlyExpenses(),
-                profile.getMonthlyEmi(), profile.getOtherCommitments());
+        if (income.signum() <= 0) {
+            throw new ValidationException("Add your monthly income in financial setup before allocating a budget.");
+        }
         BigDecimal goalPlans = BigDecimal.ZERO;
         for (Goal goal : goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)) {
             if ("active".equalsIgnoreCase(goal.getStatus()) && goal.getPlannedContribution() != null) {
                 goalPlans = goalPlans.add(goal.getPlannedContribution());
             }
         }
-        BigDecimal capacity = FinancialPlan.budgetCapacity(planning, goalPlans);
+        BigDecimal capacity = FinancialPlan.budgetCapacity(income, goalPlans);
         BigDecimal allocated = BigDecimal.ZERO;
         for (Budget budget : budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)) {
             if (editing != null && editing.getId().equals(budget.getId())) {
@@ -149,7 +150,7 @@ public class BudgetServiceImpl implements BudgetService {
 
     private void refreshAlerts(UUID userId) {
         try {
-            budgetAlertService.evaluate(userId);
+            budgetEffects.refreshAfterCommit(userId);
         } catch (RuntimeException exception) {
             log.warn("Budget alerts were not refreshed: {}", exception.getMessage());
         }

@@ -1,4 +1,5 @@
-import { Component, computed, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, effect, ElementRef, inject, signal, untracked, viewChild } from '@angular/core';
+import { parseApiError } from '../../shared/api-error';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { NgClass } from '@angular/common';
@@ -8,12 +9,12 @@ import { AuthService } from '../../service/auth.service';
 import { CHART_COLORS, formatDate, formatINR, num, queryRows } from '../../shared/format';
 import {
   budgetComparison,
+  categoryRemaining,
   dashboardGraphs,
   expenseBreakdown,
   goalProgress,
   goalSeries,
   incomeExpenseSeries,
-  planningCapacity,
   savingsTrend,
   stepGraph,
 } from '../../shared/finance-rules';
@@ -37,30 +38,24 @@ export class DashboardComponent {
   readonly pageNo = signal(1);
   readonly graphIndex = signal(0);
   readonly money = formatINR;
+  readonly num = num;
   readonly date = formatDate;
 
   private readonly stage = viewChild<ElementRef<HTMLCanvasElement>>('stage');
 
   readonly name = computed(() => this.auth.user()?.fullName || this.vault.stats()?.fullName || 'Member');
   readonly stats = computed(() => this.vault.stats());
-  readonly surplus = computed(() => {
-    const finance = this.vault.finance();
-    const stats = this.stats();
-    if (!finance || !stats) return null;
-    return planningCapacity(num(finance.monthlyIncome) + num(finance.additionalIncome), num(finance.monthlyExpenses), num(finance.monthlyEmi), num(finance.otherCommitments));
-  });
-  readonly unallocated = computed(() => {
-    const finance = this.vault.finance();
-    if (!finance) return null;
-    return Math.max(0, num(finance.currentSavings) - num(finance.emergencyReserve));
-  });
+  /** Income minus category budgets and active goal plans. */
+  readonly capacity = this.vault.capacity;
   readonly position = this.vault.position;
+  /** Total savings come from the single savings overview; entries alone are only a fallback. */
+  readonly totalSavings = computed(() => this.vault.savingsOverview()?.totalSavings ?? this.position().totalSavings);
   readonly budgetPct = computed(() => {
     const budget = this.position().monthlyBudget;
     if (!budget) return 0;
     return Math.min(100, Math.round((this.position().monthlySpending / budget) * 100));
   });
-  readonly saveWidth = computed(() => Math.min(100, this.position().totalSavings / 2000));
+  readonly saveWidth = computed(() => Math.min(100, this.totalSavings() / 2000));
   readonly goalWidth = computed(() => Math.min(100, num(this.stats()?.activeGoals) * 20));
   readonly page = computed(() => queryRows(this.vault.transactions(), this.search(), ['name', 'category', 'type', 'date'], { type: this.type() }, this.pageNo(), 5));
   readonly goalPreview = computed(() => this.vault.goals().filter((goal) => (goal.status || '').toLowerCase() === 'active').slice(0, 4));
@@ -73,9 +68,43 @@ export class DashboardComponent {
   }));
   readonly activeGraph = computed(() => this.graphs()[Math.min(this.graphIndex(), this.graphs().length - 1)]);
 
+  /** Monthly plan: the confirmed monthly summary, shown on the dashboard instead of a separate planning page. */
+  readonly plan = signal<Record<string, unknown> | null>(null);
+  readonly planLoading = signal(false);
+  readonly planError = signal('');
+  readonly insights = computed(() => {
+    const notes = this.plan()?.['insights'];
+    return Array.isArray(notes) ? notes.map((item) => String(item)) : [];
+  });
+  readonly budgetRows = computed(() => this.vault.budgets().map((row) => ({ ...row, math: categoryRemaining(num(row.limit), num(row.spent)) })));
+
   constructor() {
     if (this.vault.needsSetup()) setTimeout(() => this.prompt.set(true), 250);
     effect(() => this.paint());
+    void this.loadPlan();
+    effect(() => {
+      if (this.vault.planStale()) untracked(() => void this.loadPlan());
+    });
+  }
+
+  async loadPlan(): Promise<void> {
+    const userId = this.auth.user()?.id;
+    if (!userId || !this.vault.finance()) {
+      this.plan.set(null);
+      this.planError.set('');
+      return;
+    }
+    this.planLoading.set(true);
+    this.planError.set('');
+    try {
+      this.plan.set(await this.vault.monthlySummary(userId));
+      this.vault.acknowledgePlan();
+    } catch (error) {
+      this.plan.set(null);
+      this.planError.set(parseApiError(error).message);
+    } finally {
+      this.planLoading.set(false);
+    }
   }
 
   showGraph(index: number): void {

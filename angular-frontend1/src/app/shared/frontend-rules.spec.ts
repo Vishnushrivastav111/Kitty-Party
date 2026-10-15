@@ -20,7 +20,8 @@ import {
   monthlyBudgetPosition,
   overrunIncrease,
   personName,
-  profileSurplus,
+  incomeCapacity,
+  resolveMonthlyBudget,
   reportDateErrors,
   reportRequestBody,
   savingsTrend,
@@ -30,6 +31,9 @@ import {
   transactionDeletionRequest,
   transactionsMatching,
 } from './finance-rules.ts';
+
+import { reportAnalysis, reportPresetRange } from './finance-rules.ts';
+import { successMessage } from './success-messages.ts';
 
 const root = new URL('../', import.meta.url);
 
@@ -68,16 +72,16 @@ describe('API errors', () => {
 
   it('handles an empty body and a network failure', () => {
     const empty = parseApiError({ status: 500, error: '' });
-    assert.equal(empty.message, 'The server returned status 500 without a message.');
+    assert.equal(empty.message, 'Something went wrong (code 500). Please try again.');
     const offline = parseApiError({ status: 0, error: null });
     assert.equal(offline.status, 0);
-    assert.equal(offline.message.includes('could not be reached'), true);
+    assert.equal(offline.message.includes('could not connect'), true);
   });
 
   it('does not surface HTML, URLs, or tokens', () => {
     const html = parseApiError({ status: 502, error: '<html><body>gateway</body></html>' });
     assert.equal(html.message.includes('<html'), false);
-    assert.equal(html.message, 'The server returned status 502 without a message.');
+    assert.equal(html.message, 'Something went wrong (code 502). Please try again.');
     const leaked = parseApiError({ status: 400, error: { message: 'bad token=abc password=secret bearer eyJabc.def.ghi http://localhost:8080/api/auth/login' } });
     assert.equal(leaked.message.includes('secret'), false);
     assert.equal(leaked.message.includes('localhost'), false);
@@ -183,7 +187,7 @@ describe('financial sync and approvals', () => {
     assert.equal(result.deleted, false);
     assert.equal(result.submitted, false);
     assert.equal(result.pending, false);
-    assert.equal(API_CAPABILITIES.transactionDeletionApproval, false);
+    assert.equal(API_CAPABILITIES.transactionDeletionApproval, true);
     let refreshed = false;
     const applied = await applyConfirmedDeletion(false, async () => { refreshed = true; });
     assert.equal(applied, false);
@@ -201,12 +205,22 @@ describe('financial sync and approvals', () => {
   });
 
   it('does not add savings to income and does not invent goal progress', () => {
-    assert.equal(profileSurplus(50000, 20000), 30000);
     const progress = goalProgress(2500, 10000);
     assert.equal(progress.remaining, 7500);
     assert.equal(progress.percent, 25);
     assert.equal(goalProgress(0, 0).percent, 0);
     assert.equal(goalProgress(50, 40).percent, 100);
+  });
+
+  it('derives capacity from income, category budgets and active goal plans only', () => {
+    const room = incomeCapacity(80000, [30000, 20000], [5000]);
+    assert.equal(room.allocated, 50000);
+    assert.equal(room.budgetCapacity, 75000);
+    assert.equal(room.remaining, 25000);
+    assert.equal(incomeCapacity(10000, [12000], []).remaining, -2000);
+    assert.equal(incomeCapacity(0, [], []).remaining, 0);
+    assert.equal(resolveMonthlyBudget([]), null);
+    assert.equal(resolveMonthlyBudget([1000, 2500]), 3500);
   });
 
   it('keeps a transaction inside the monthly budget', () => {
@@ -272,8 +286,7 @@ describe('financial sync and approvals', () => {
 
   it('builds one shared position and does not invent an emergency fund', () => {
     const position = buildFinancialPosition({
-      profileBudget: 30000,
-      categoryLimits: [],
+      categoryLimits: [20000, 10000],
       transactions: [
         { type: 'expense', amount: 27000, date: '2026-10-01' },
         { type: 'income', amount: 9000, date: '2026-10-01' },
@@ -306,5 +319,115 @@ describe('financial sync and approvals', () => {
     assert.equal(API_CAPABILITIES.reportHistoryDelete, false);
     assert.equal(API_CAPABILITIES.financialSetupApproval, false);
     assert.equal(API_CAPABILITIES.recommendedBudget, false);
+  });
+});
+
+describe('savings overview and cleaned-up screens', () => {
+  const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
+
+  it('shows every savings bucket on the Savings page from the single overview', () => {
+    const html = read('component/Finance/savings/savings.component.html');
+    for (const label of ['Total savings', 'Allocated to goals', 'Unallocated liquid savings', 'Emergency reserve', 'Investments &amp; other savings', 'Available for wants']) {
+      assert.equal(html.includes(label), true, label);
+    }
+    assert.equal(html.includes('Emergency fund'), false);
+  });
+
+  it('removes the moved cards from the Dashboard', () => {
+    const html = read('component/Finance/dashboard.component.html');
+    for (const label of ['Latest affordability', 'Goal contributions', 'Emergency reserve', 'Unallocated liquid savings']) {
+      assert.equal(html.includes(label), false, label);
+    }
+    assert.equal((html.match(/<div class="cards">/g) || []).length, 2);
+  });
+
+  it('keeps technical wording out of user-facing screens', () => {
+    const screens = [
+      'component/Finance/dashboard.component.html',
+      'component/Finance/savings/savings.component.html',
+      'component/Finance/affordability/affordability.component.html',
+      'component/Finance/goals/goals.component.html',
+      'component/Finance/budget/budget.component.html',
+      'component/Finance/reports/reports.component.html',
+    ];
+    for (const screen of screens) {
+      const text = read(screen).replace(/<[^>]*>/g, ' ');
+      assert.equal(/\b(API|server|endpoint|backend|debug)\b/i.test(text), false, screen);
+    }
+  });
+});
+
+describe('success messages', () => {
+  const api = 'http://localhost:8080/api';
+  const id = '3f2b8c1e-5d4a-4b6f-9a7c-1d2e3f4a5b6c';
+
+  it('confirms adding, updating and deleting each kind of record', () => {
+    assert.equal(successMessage('POST', api + '/transactions'), 'Transaction added successfully');
+    assert.equal(successMessage('PUT', api + '/transactions/' + id), 'Transaction updated successfully');
+    assert.equal(successMessage('DELETE', api + '/transactions/' + id), 'Transaction deleted successfully');
+    assert.equal(successMessage('DELETE', api + '/transactions'), 'All transactions deleted successfully');
+    assert.equal(successMessage('POST', api + '/savings'), 'Savings entry added successfully');
+    assert.equal(successMessage('POST', api + '/goals'), 'Goal added successfully');
+    assert.equal(successMessage('PUT', api + '/budgets/' + id), 'Budget updated successfully');
+  });
+
+  it('has plain messages for the special actions and stays quiet for reads', () => {
+    assert.equal(successMessage('PUT', api + '/finance'), 'Financial profile saved successfully');
+    assert.equal(successMessage('POST', api + '/reports/generate'), 'Report generated successfully');
+    assert.equal(successMessage('PUT', api + '/notifications/' + id + '/read'), 'Notification marked as read');
+    assert.equal(successMessage('PUT', api + '/users/me/password'), 'Password changed successfully');
+    assert.equal(successMessage('DELETE', api + '/admin/users/' + id), 'User deleted successfully');
+    assert.equal(successMessage('GET', api + '/transactions'), null);
+    assert.equal(successMessage('POST', api + '/finance/skip'), null);
+    assert.equal(successMessage('POST', 'http://example.com/other'), null);
+  });
+});
+
+describe('report periods and analysis', () => {
+  const tx = (date: string, type: string, category: string, amount: number, id: string) => ({ id, date, type, category, amount, name: category }) as never;
+
+  it('builds the quick periods', () => {
+    assert.deepEqual(reportPresetRange('thisMonth', '2026-10-16'), { from: '2026-10-01', to: '2026-10-16' });
+    assert.deepEqual(reportPresetRange('lastMonth', '2026-10-16'), { from: '2026-09-01', to: '2026-09-30' });
+    assert.deepEqual(reportPresetRange('lastMonth', '2026-01-10'), { from: '2025-12-01', to: '2025-12-31' });
+    assert.deepEqual(reportPresetRange('last3Months', '2026-10-16'), { from: '2026-08-01', to: '2026-10-16' });
+    assert.deepEqual(reportPresetRange('thisYear', '2026-10-16'), { from: '2026-01-01', to: '2026-10-16' });
+    assert.equal(reportPresetRange('custom', '2026-10-16'), null);
+  });
+
+  it('totals income, spending, savings rate and category shares', () => {
+    const rows = [
+      tx('2026-10-02', 'income', 'Salary', 50000, 'a'),
+      tx('2026-10-03', 'expense', 'Food', 6000, 'b'),
+      tx('2026-10-05', 'expense', 'Rent', 14000, 'c'),
+      tx('2026-10-05', 'expense', 'Food', 2000, 'd'),
+    ];
+    const view = reportAnalysis(rows, '2026-10-01', '2026-10-10');
+    assert.equal(view.income, 50000);
+    assert.equal(view.expense, 22000);
+    assert.equal(view.net, 28000);
+    assert.equal(view.savingsRate, 56);
+    assert.equal(view.days, 10);
+    assert.equal(view.averageDailySpend, 2200);
+    assert.deepEqual(view.categories.map((item) => [item.category, item.amount, item.percent]), [['Rent', 14000, 63.6], ['Food', 8000, 36.4]]);
+    assert.equal(view.topCategory?.category, 'Rent');
+    assert.equal(view.biggestExpense?.amount, 14000);
+    assert.equal(view.trend.unit, 'day');
+    assert.equal(view.trend.labels.length, 10);
+    assert.equal(view.trend.expense[4], 16000);
+  });
+
+  it('handles empty periods, no income and long ranges', () => {
+    const empty = reportAnalysis([], '2026-10-01', '2026-10-10');
+    assert.equal(empty.count, 0);
+    assert.equal(empty.savingsRate, null);
+    assert.equal(empty.topCategory, null);
+    assert.equal(empty.biggestExpense, null);
+    const spendOnly = reportAnalysis([tx('2026-10-03', 'expense', 'Food', 100, 'x')], '2026-10-01', '2026-10-10');
+    assert.equal(spendOnly.savingsRate, null);
+    assert.equal(spendOnly.net, -100);
+    const long = reportAnalysis([tx('2026-03-03', 'expense', 'Food', 100, 'x'), tx('2026-05-03', 'income', 'Salary', 900, 'y')], '2026-01-01', '2026-10-16');
+    assert.equal(long.trend.unit, 'month');
+    assert.deepEqual(long.trend.labels, ['2026-03', '2026-05']);
   });
 });

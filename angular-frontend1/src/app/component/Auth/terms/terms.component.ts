@@ -1,24 +1,14 @@
-import { Component, signal } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SiteFooterComponent } from '../../../shared/site-footer.component';
+import { TermsContentComponent } from './terms-content.component';
 
+/** Read-only Terms page reached from the footer. Acceptance happens in the registration dialog. */
 @Component({
   selector: 'app-terms',
   standalone: true,
-  imports: [RouterLink, SiteFooterComponent],
+  imports: [RouterLink, SiteFooterComponent, TermsContentComponent],
   templateUrl: './terms.component.html',
   styleUrl: './terms.component.scss',
 })
-export class TermsComponent {
-  readonly unlocked = signal(false);
-  readonly accepted = signal(false);
-
-  onScroll(box: HTMLElement): void {
-    if (box.scrollTop + box.clientHeight >= box.scrollHeight - 8) this.unlocked.set(true);
-  }
-
-  accept(): void {
-    localStorage.setItem('mv_termsAccepted', 'true');
-    history.back();
-  }
-}
+export class TermsComponent {}

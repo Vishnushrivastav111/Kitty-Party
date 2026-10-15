@@ -4,9 +4,11 @@ import { FeedbackHistory } from '../model/models';
 import { ApiService } from './api.service';
 import { AuthService } from '../service/auth.service';
 import { WorkspaceService } from './workspace.service';
+import { ToastService } from '../shared/toast.service';
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
+  private readonly toast = inject(ToastService);
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly workspace = inject(WorkspaceService);
@@ -60,6 +62,7 @@ export class AdminService {
         status: body['status'] || 'active',
         role: 'user',
       });
+      this.toast.success('User created successfully');
     }
     await this.workspace.refresh();
   }

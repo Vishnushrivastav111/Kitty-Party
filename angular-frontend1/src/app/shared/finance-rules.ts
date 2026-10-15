@@ -14,7 +14,7 @@ export const API_CAPABILITIES = {
 } as const;
 
 export const UNSUPPORTED_DELETION_MESSAGE =
-  'This transaction was not deleted. Deletion requires administrator approval, and the API has no operation to submit or review that request.';
+  'This transaction was not deleted. Deleting it needs administrator approval.';
 
 export interface DeletionRequestResult {
   submitted: false;
@@ -56,12 +56,35 @@ export interface MoneyRow {
   category?: string;
 }
 
-/** User monthly budget from the profile, otherwise the sum of saved category limits. Never substitutes a default. */
-export function resolveMonthlyBudget(profileBudget: number | null | undefined, categoryLimits: number[]): number | null {
-  const profile = Number(profileBudget);
-  if (Number.isFinite(profile) && profile > 0) return roundMoney(profile);
+/** The monthly budget is the sum of the saved category limits. Never substitutes a default. */
+export function resolveMonthlyBudget(categoryLimits: number[]): number | null {
   const limits = categoryLimits.reduce((sum, value) => roundMoney(sum + (Number(value) || 0)), 0);
   return limits > 0 ? limits : null;
+}
+
+export interface IncomeCapacity {
+  /** Take-home plus other recurring income. */
+  income: number;
+  /** Sum of category budget limits. */
+  allocated: number;
+  /** Sum of planned monthly contributions of active goals. */
+  goalPlans: number;
+  /** Income minus active goal contributions: the most category budgets can add up to. */
+  budgetCapacity: number;
+  /** Budget capacity minus category budgets. Negative means over-committed. */
+  remaining: number;
+}
+
+/**
+ * Income-only capacity: category budgets and active goal plans are the commitments.
+ * Matches the server summary (FinancialPlan.java). Expenses and EMI are not entered in setup.
+ */
+export function incomeCapacity(income: number, categoryLimits: number[], goalPlans: number[]): IncomeCapacity {
+  const total = roundMoney(Number(income) || 0);
+  const allocated = categoryLimits.reduce((sum, value) => roundMoney(sum + (Number(value) || 0)), 0);
+  const plans = goalPlans.reduce((sum, value) => roundMoney(sum + (Number(value) || 0)), 0);
+  const budgetCapacity = roundMoney(total - plans);
+  return { income: total, allocated, goalPlans: plans, budgetCapacity, remaining: roundMoney(budgetCapacity - allocated) };
 }
 
 export function monthExpenseTotal(rows: MoneyRow[], month: string, excludeId?: string): number {
@@ -146,14 +169,13 @@ export interface FinancialPosition {
 }
 
 export function buildFinancialPosition(input: {
-  profileBudget: number | null | undefined;
   categoryLimits: number[];
   transactions: MoneyRow[];
   savings: Array<{ amount: number; date: string }>;
   goals: Array<{ saved: number }>;
   month: string;
 }): FinancialPosition {
-  const monthlyBudget = resolveMonthlyBudget(input.profileBudget, input.categoryLimits);
+  const monthlyBudget = resolveMonthlyBudget(input.categoryLimits);
   const monthlySpending = monthExpenseTotal(input.transactions, input.month);
   const budget = monthlyBudget == null ? null : monthlyBudgetPosition(monthlyBudget, monthlySpending);
   const totalSavings = totalFromAmounts(input.savings);
@@ -178,16 +200,6 @@ export function goalProgress(saved: number, target: number): { remaining: number
   if (!(safeTarget > 0)) return { remaining: roundMoney(safeTarget - safeSaved), percent: 0 };
   const percent = Math.min(100, Math.max(0, (safeSaved / safeTarget) * 100));
   return { remaining: roundMoney(safeTarget - safeSaved), percent: Math.round(percent * 100) / 100 };
-}
-
-/** Income minus essential expenses. EMI and other commitments are applied in planningCapacity. */
-export function profileSurplus(income: number, expenses: number): number {
-  return Math.max(0, roundMoney(income - expenses));
-}
-
-/** Recurring income minus essential expenses, EMI, and other required commitments. */
-export function planningCapacity(income: number, essential: number, emi: number, other: number): number {
-  return roundMoney(income - essential - emi - other);
 }
 
 export function joinFullName(firstName: string, middleName: string, lastName: string): string {
@@ -242,6 +254,104 @@ export function totalsFromTransactions(rows: Tx[]): { income: number; expense: n
     else if (row.type === 'expense') expense = roundMoney(expense + amount);
   }
   return { income, expense, count: rows.length };
+}
+
+export type ReportPreset = 'thisMonth' | 'lastMonth' | 'last3Months' | 'thisYear' | 'custom';
+
+function isoDay(year: number, monthIndex: number, day: number): string {
+  return new Date(Date.UTC(year, monthIndex, day)).toISOString().slice(0, 10);
+}
+
+/** Start and end dates for a quick period, or null for a custom range. */
+export function reportPresetRange(preset: ReportPreset, today: string): { from: string; to: string } | null {
+  const [year, month] = today.split('-').map(Number);
+  const monthIndex = month - 1;
+  if (preset === 'thisMonth') return { from: isoDay(year, monthIndex, 1), to: today };
+  if (preset === 'lastMonth') return { from: isoDay(year, monthIndex - 1, 1), to: isoDay(year, monthIndex, 0) };
+  if (preset === 'last3Months') return { from: isoDay(year, monthIndex - 2, 1), to: today };
+  if (preset === 'thisYear') return { from: isoDay(year, 0, 1), to: today };
+  return null;
+}
+
+function daysBetween(from: string, to: string): number {
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return 1;
+  return Math.round((b - a) / 86400000) + 1;
+}
+
+export interface ReportAnalysis {
+  income: number;
+  expense: number;
+  net: number;
+  /** Share of income that was not spent, in percent. Null when there is no income. */
+  savingsRate: number | null;
+  count: number;
+  days: number;
+  averageDailySpend: number;
+  categories: Array<{ category: string; amount: number; percent: number }>;
+  topCategory: { category: string; amount: number } | null;
+  biggestExpense: Tx | null;
+  trend: { unit: 'day' | 'month'; labels: string[]; income: number[]; expense: number[] };
+}
+
+/** Everything the Reports page shows for one period, calculated from the matching transactions. */
+export function reportAnalysis(rows: Tx[], from: string, to: string): ReportAnalysis {
+  const totals = totalsFromTransactions(rows);
+  const days = daysBetween(from, to);
+  const net = roundMoney(totals.income - totals.expense);
+  const byCategory: Record<string, number> = {};
+  let biggest: Tx | null = null;
+  for (const row of rows) {
+    if (row.type !== 'expense') continue;
+    const amount = roundMoney(Number(row.amount) || 0);
+    const key = row.category || 'Other';
+    byCategory[key] = roundMoney((byCategory[key] || 0) + amount);
+    if (!biggest || amount > Number(biggest.amount)) biggest = row;
+  }
+  const categories = Object.keys(byCategory)
+    .map((category) => ({
+      category,
+      amount: byCategory[category],
+      percent: totals.expense > 0 ? Math.round((byCategory[category] / totals.expense) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const byDay = days <= 45;
+  const buckets = new Map<string, { income: number; expense: number }>();
+  if (byDay) {
+    for (let i = 0; i < days; i++) {
+      const [y, m, d] = from.split('-').map(Number);
+      buckets.set(isoDay(y, m - 1, d + i), { income: 0, expense: 0 });
+    }
+  }
+  for (const row of rows) {
+    const key = String(row.date || '').slice(0, byDay ? 10 : 7);
+    if (!key || (row.type !== 'income' && row.type !== 'expense')) continue;
+    const kind = row.type as 'income' | 'expense';
+    const bucket = buckets.get(key) || { income: 0, expense: 0 };
+    bucket[kind] = roundMoney(bucket[kind] + (Number(row.amount) || 0));
+    buckets.set(key, bucket);
+  }
+  const labels = [...buckets.keys()].sort();
+  return {
+    income: totals.income,
+    expense: totals.expense,
+    net,
+    savingsRate: totals.income > 0 ? Math.round((net / totals.income) * 1000) / 10 : null,
+    count: totals.count,
+    days,
+    averageDailySpend: roundMoney(totals.expense / days),
+    categories,
+    topCategory: categories.length ? { category: categories[0].category, amount: categories[0].amount } : null,
+    biggestExpense: biggest,
+    trend: {
+      unit: byDay ? 'day' : 'month',
+      labels,
+      income: labels.map((label) => buckets.get(label)!.income),
+      expense: labels.map((label) => buckets.get(label)!.expense),
+    },
+  };
 }
 
 export interface GraphSpec {

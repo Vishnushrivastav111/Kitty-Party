@@ -1,5 +1,6 @@
 import { Component, computed, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { destroyChart, mountChart } from '../../../shared/charts';
 import { budgetComparison, categoryRemaining, roundMoney, stepGraph } from '../../../shared/finance-rules';
 import { GraphPagerComponent } from '../../../shared/graph-pager.component';
@@ -14,7 +15,7 @@ import { PagerComponent } from '../../../shared/pager.component';
 @Component({
   selector: 'app-budget',
   standalone: true,
-  imports: [FormsModule, PagerComponent, GraphPagerComponent],
+  imports: [FormsModule, RouterLink, PagerComponent, GraphPagerComponent],
   templateUrl: './budget.component.html',
   styleUrl: './budget.component.scss',
 })

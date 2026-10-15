@@ -91,15 +91,6 @@ public class FinanceProfileServiceImpl implements FinanceProfileService {
         BigDecimal takeHome = money(profile.getMonthlyIncome());
         BigDecimal additional = money(profile.getAdditionalIncome());
         BigDecimal income = FinancialPlan.totalMonthlyIncome(takeHome, additional);
-        BigDecimal expenses = money(profile.getMonthlyExpenses());
-        BigDecimal emi = money(profile.getMonthlyEmi());
-        BigDecimal other = money(profile.getOtherCommitments());
-        BigDecimal planning = FinancialPlan.planningCapacity(income, expenses, emi, other);
-        BigDecimal surplus = FinancialPlan.nonNegative(planning);
-        BigDecimal rate = BigDecimal.ZERO;
-        if (income.compareTo(BigDecimal.ZERO) > 0) {
-            rate = surplus.multiply(new BigDecimal("100")).divide(income, 2, RoundingMode.HALF_UP);
-        }
         BigDecimal goalPlans = BigDecimal.ZERO;
         for (var goal : goalService.list(userId)) {
             if ("active".equalsIgnoreCase(goal.getStatus()) && goal.getPlannedContribution() != null) {
@@ -112,9 +103,9 @@ public class FinanceProfileServiceImpl implements FinanceProfileService {
                 allocated = allocated.add(budget.getLimit());
             }
         }
-        BigDecimal budgetCapacity = FinancialPlan.budgetCapacity(planning, goalPlans);
+        BigDecimal budgetCapacity = FinancialPlan.budgetCapacity(income, goalPlans);
         BigDecimal remainingBudget = FinancialPlan.remainingBudgetCapacity(budgetCapacity, allocated);
-        BigDecimal goalCapacity = FinancialPlan.goalContributionCapacity(planning, allocated, goalPlans);
+        BigDecimal goalCapacity = FinancialPlan.goalContributionCapacity(income, allocated, goalPlans);
         BigDecimal emergency = money(profile.getEmergencyReserve());
         BigDecimal liquid = money(profile.getCurrentSavings());
         if (emergency.compareTo(liquid) > 0) {
@@ -124,19 +115,14 @@ public class FinanceProfileServiceImpl implements FinanceProfileService {
         summary.setUserId(userId);
         summary.setMonthlyIncome(takeHome);
         summary.setTotalMonthlyIncome(income);
-        summary.setMonthlyExpenses(expenses);
-        summary.setMonthlyEmi(emi);
-        summary.setOtherCommitments(other);
-        summary.setPlanningCapacity(planning);
-        summary.setMonthlySurplus(surplus);
-        summary.setSavingsRatePercent(rate);
+        summary.setAllocatedBudgets(FinancialPlan.money(allocated));
         summary.setPlannedGoalContributions(FinancialPlan.money(goalPlans));
         summary.setBudgetCapacity(budgetCapacity);
         summary.setRemainingBudgetCapacity(remainingBudget);
         summary.setGoalContributionCapacity(goalCapacity);
         summary.setEmergencyReserve(emergency);
         summary.setUnallocatedLiquid(liquid.subtract(emergency));
-        summary.setInsights(insights(profile, planning, goalCapacity, goalPlans, emergency, expenses));
+        summary.setInsights(insights(income, goalCapacity, goalPlans, allocated, remainingBudget, emergency));
         return summary;
     }
 
@@ -166,6 +152,7 @@ public class FinanceProfileServiceImpl implements FinanceProfileService {
         workspace.setTransactions(transactionService.list(userId));
         workspace.setGoals(goalService.list(userId));
         workspace.setSavings(savingsService.list(userId));
+        workspace.setSavingsOverview(savingsService.overview(userId));
         workspace.setBudgets(budgetService.list(userId));
         workspace.setReports(reportService.list(userId));
         workspace.setAffordChecks(affordabilityService.list(userId));
@@ -173,31 +160,34 @@ public class FinanceProfileServiceImpl implements FinanceProfileService {
         return workspace;
     }
 
-    private List<String> insights(FinanceProfile profile, BigDecimal planning, BigDecimal goalCapacity,
-                                  BigDecimal goalPlans, BigDecimal emergency, BigDecimal essential) {
+    private List<String> insights(BigDecimal income, BigDecimal goalCapacity, BigDecimal goalPlans,
+                                  BigDecimal allocated, BigDecimal remainingBudget, BigDecimal emergency) {
         List<String> notes = new ArrayList<>();
-        if (essential.signum() > 0 && emergency.signum() > 0) {
-            BigDecimal months = emergency.divide(essential, 1, RoundingMode.HALF_UP);
-            notes.add("Emergency reserves cover about " + months.toPlainString()
-                    + " months of essential expenses. Three to six months is a common guide, not a guarantee.");
-        } else if (essential.signum() > 0 && emergency.signum() == 0) {
-            notes.add("No emergency reserve is set aside. Essential expenses are " + FinancialPlan.rupee(essential) + " a month.");
+        if (income.signum() <= 0) {
+            notes.add("Add your monthly income so budgets and goals can be checked against it.");
+            return notes;
         }
-        if (goalPlans.signum() > 0 && goalPlans.compareTo(FinancialPlan.nonNegative(goalCapacity.add(goalPlans))) > 0) {
-            notes.add("Combined active goal contributions are above the monthly capacity left after obligations and budgets.");
+        if (allocated.signum() > 0 && emergency.signum() > 0) {
+            BigDecimal months = emergency.divide(allocated, 1, RoundingMode.HALF_UP);
+            notes.add("Your emergency reserve covers about " + months.toPlainString()
+                    + " months of your planned category budgets. Three to six months is a common guide, not a guarantee.");
+        } else if (allocated.signum() > 0) {
+            notes.add("No emergency reserve is set aside. Your category budgets total " + FinancialPlan.rupee(allocated) + " a month.");
+        } else {
+            notes.add("You have no category budgets yet. Create budgets for rent, food, EMI / Loans and other spending to see how much room remains.");
+        }
+        if (remainingBudget.signum() < 0) {
+            notes.add("Category budgets and active goal contributions are above your monthly income by "
+                    + FinancialPlan.rupee(remainingBudget.abs()) + ".");
+        }
+        if (goalPlans.signum() > 0 && FinancialPlan.nonNegative(goalCapacity).signum() == 0) {
+            notes.add("Combined active goal contributions are above the monthly income left after category budgets.");
         } else if (FinancialPlan.nonNegative(goalCapacity).signum() > 0) {
             notes.add("About " + FinancialPlan.rupee(FinancialPlan.nonNegative(goalCapacity))
-                    + " a month remains for new goal contributions after obligations and category budgets.");
-        }
-        if (planning.signum() < 0) {
-            notes.add("Recurring commitments are higher than monthly income by " + FinancialPlan.rupee(planning.abs()) + ".");
-        }
-        if (notes.isEmpty()) {
-            notes.add("This profile has no extra guidance yet. Add an emergency reserve, a budget, or an active goal to see a specific suggestion.");
+                    + " a month remains for new goal contributions after category budgets.");
         }
         return notes;
     }
-
     private FinanceProfile load(UUID userId) {
         return financeProfileRepository.findByUserIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("No active financial profile found for this user"));
@@ -208,14 +198,12 @@ public class FinanceProfileServiceImpl implements FinanceProfileService {
             throw new ValidationException("Monthly income is required");
         }
         checkNotNegative(request.getMonthlyIncome(), "Monthly income");
+        if (request.getMonthlyIncome().signum() == 0) {
+            throw new ValidationException("Monthly income must be greater than zero");
+        }
         checkNotNegative(request.getAdditionalIncome(), "Additional income");
-        checkNotNegative(request.getMonthlyExpenses(), "Monthly expenses");
-        checkNotNegative(request.getOtherCommitments(), "Other commitments");
         checkNotNegative(request.getCurrentSavings(), "Current savings");
         checkNotNegative(request.getEmergencyReserve(), "Emergency reserve");
-        checkNotNegative(request.getMonthlyBudget(), "Monthly budget");
-        checkNotNegative(request.getLoanAmount(), "Loan amount");
-        checkNotNegative(emi(request), "Monthly EMI");
         checkNotNegative(request.getInvestments(), "Investments");
         BigDecimal savings = money(request.getCurrentSavings());
         BigDecimal emergency = money(request.getEmergencyReserve());
@@ -233,22 +221,37 @@ public class FinanceProfileServiceImpl implements FinanceProfileService {
         profile.setMonthlyIncome(money(request.getMonthlyIncome()));
         profile.setAdditionalIncome(money(request.getAdditionalIncome()));
         profile.setPayCycle(clean(request.getPayCycle()));
-        profile.setMonthlyExpenses(money(request.getMonthlyExpenses()));
-        profile.setOtherCommitments(money(request.getOtherCommitments()));
-        profile.setExpenseCategories(textList(request.getExpenseCategories()));
-        profile.setHasLoan(yes(request.getHasLoan()));
-        profile.setLoanType(clean(request.getLoanType()));
-        profile.setLoanAmount(money(request.getLoanAmount()));
-        profile.setMonthlyEmi(money(emi(request)));
-        profile.setEmiStartDate(parseDate(request.getEmiStartDate()));
+        keepLegacyDefaults(profile);
         profile.setCurrentSavings(money(request.getCurrentSavings()));
         profile.setEmergencyReserve(money(request.getEmergencyReserve()));
         profile.setSavingsType(clean(request.getSavingsType()));
         profile.setInvestments(money(request.getInvestments()));
         profile.setInvestmentTypes(textList(request.getInvestmentTypes()));
-        profile.setMonthlyBudget(money(request.getMonthlyBudget()));
-        profile.setBudgetStyle(clean(request.getBudgetStyle()));
-        profile.setSetupDate(parseDate(request.getSetupDate()));
+        LocalDate setupDate = parseDate(request.getSetupDate());
+        profile.setSetupDate(setupDate != null ? setupDate : LocalDate.now());
+    }
+
+    /**
+     * Setup no longer collects expenses, loans, EMI, other commitments, or a monthly budget
+     * (category budgets own that). The old columns stay in the table so no data is lost, are
+     * never read by any calculation, and are only given zero defaults for brand-new rows.
+     */
+    private void keepLegacyDefaults(FinanceProfile profile) {
+        if (profile.getMonthlyExpenses() == null) {
+            profile.setMonthlyExpenses(BigDecimal.ZERO);
+        }
+        if (profile.getOtherCommitments() == null) {
+            profile.setOtherCommitments(BigDecimal.ZERO);
+        }
+        if (profile.getLoanAmount() == null) {
+            profile.setLoanAmount(BigDecimal.ZERO);
+        }
+        if (profile.getMonthlyEmi() == null) {
+            profile.setMonthlyEmi(BigDecimal.ZERO);
+        }
+        if (profile.getMonthlyBudget() == null) {
+            profile.setMonthlyBudget(BigDecimal.ZERO);
+        }
     }
 
     private FinanceProfileResponse toResponse(FinanceProfile profile) {
@@ -276,24 +279,6 @@ public class FinanceProfileServiceImpl implements FinanceProfileService {
         response.setBudgetStyle(profile.getBudgetStyle());
         response.setSetupDate(profile.getSetupDate());
         return response;
-    }
-
-    private BigDecimal emi(FinanceProfileRequest request) {
-        if (request.getMonthlyEmi() != null) {
-            return request.getMonthlyEmi();
-        }
-        return request.getLoansEmi();
-    }
-
-    private boolean yes(JsonNode node) {
-        if (node == null || node.isNull()) {
-            return false;
-        }
-        if (node.isBoolean()) {
-            return node.booleanValue();
-        }
-        String text = node.asText("");
-        return "yes".equalsIgnoreCase(text) || "true".equalsIgnoreCase(text);
     }
 
     private String textList(JsonNode node) {
