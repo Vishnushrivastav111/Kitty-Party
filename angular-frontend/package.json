@@ -7,7 +7,10 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
-    "watch": "ng build --watch --configuration development"
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test --no-watch --no-progress",
+    "test:watch": "ng test --watch",
+    "test:coverage": "ng test --no-watch --no-progress --code-coverage"
   },
   "dependencies": {
     "@angular/common": "19.2.15",
@@ -26,6 +29,12 @@
     "@angular-devkit/build-angular": "19.2.17",
     "@angular/cli": "19.2.17",
     "@angular/compiler-cli": "19.2.15",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "jasmine-core": "5.7.1",
+    "karma": "6.4.4",
+    "karma-chrome-launcher": "3.2.0",
+    "karma-coverage": "2.2.1",
+    "karma-jasmine": "5.1.0",
+    "karma-jasmine-html-reporter": "2.1.0"
   }
 }
