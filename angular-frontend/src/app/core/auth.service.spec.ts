@@ -24,12 +24,9 @@ describe('AuthService', () => {
     expect(service.user()).toBeNull();
   });
 
-  it('restores a valid stored user and token', () => {
-    localStorage.setItem('mv_token', 'token');
-    localStorage.setItem('mv_currentUser', JSON.stringify(user));
-    const restored = TestBed.inject(AuthService);
-    expect(restored.token()).toBe('');
-    expect(restored.user()).toBeNull();
+  it('handles invalid stored user JSON safely', () => {
+    localStorage.setItem('mv_currentUser', '{invalid');
+    expect(TestBed.inject(AuthService).user()).toBeNull();
   });
 
   it('logs in and persists a successful response', async () => {
@@ -64,9 +61,16 @@ describe('AuthService', () => {
     const updated = { ...user, fullName: 'Updated User' };
     service.patchUser({ fullName: updated.fullName });
     expect(service.user()?.fullName).toBe('Updated User');
+    service.patchUser({ id: 'u2' });
+    expect(service.user()?.id).toBe('u2');
     api.put.and.resolveTo(updated);
     expect(await service.updateProfile({ fullName: updated.fullName, email: updated.email, phone: updated.phone! })).toEqual(updated);
     expect(service.user()?.fullName).toBe('Updated User');
+  });
+
+  it('ignores patchUser when no session user exists', () => {
+    service.patchUser({ fullName: 'Nobody' });
+    expect(service.user()).toBeNull();
   });
 
   it('changes password and sends/reset OTP', async () => {
