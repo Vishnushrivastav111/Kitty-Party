@@ -46,13 +46,13 @@
           }
           <div class="form-grid">
             <div class="form-group"><label for="txDate">Date</label><input id="txDate" type="date" name="date" [(ngModel)]="form.date" [max]="today" [class.input-error]="errors()['date']" (ngModelChange)="touch('date', dateOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['date'] ? 'block' : 'none'">{{ errors()['date'] }}</span></div>
-            <div class="form-group"><label for="txName">Name</label><input id="txName" name="name" [(ngModel)]="form.name" placeholder="e.g. Grocery shopping" [class.input-error]="errors()['name']" (ngModelChange)="touch('name', nameOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['name'] ? 'block' : 'none'">{{ errors()['name'] }}</span></div>
+            <div class="form-group"><label for="txName">Name</label><input id="txName" name="name" [(ngModel)]="form.name" placeholder="Enter transaction name" [class.input-error]="errors()['name']" (ngModelChange)="touch('name', nameOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['name'] ? 'block' : 'none'">{{ errors()['name'] }}</span></div>
             <div class="form-group"><label for="txCategory">Category</label>
               <select id="txCategory" name="category" [(ngModel)]="form.category" [class.input-error]="errors()['category']" (ngModelChange)="touch('category', categoryOk($event))"><option value="">Select</option>@for (item of categories; track item) { <option [value]="item">{{ item }}</option> }</select>
               <span class="field-error" role="alert" [style.display]="errors()['category'] ? 'block' : 'none'">{{ errors()['category'] }}</span>
             </div>
             <div class="form-group"><label for="txType">Type</label><select id="txType" name="type" [(ngModel)]="form.type"><option value="expense">Expense</option><option value="income">Income</option><option value="refund">Refund</option><option value="transfer">Transfer</option></select></div>
-            <div class="form-group"><label for="txAmount">Amount (₹)</label><input id="txAmount" type="number" name="amount" min="0" [(ngModel)]="form.amount" placeholder="e.g. 250" [class.input-error]="errors()['amount']" (ngModelChange)="touch('amount', amountOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['amount'] ? 'block' : 'none'">{{ errors()['amount'] }}</span></div>
+            <div class="form-group"><label for="txAmount">Amount (₹)</label><input id="txAmount" type="number" name="amount" min="0" [(ngModel)]="form.amount" placeholder="Enter amount in ₹" [class.input-error]="errors()['amount']" (ngModelChange)="touch('amount', amountOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['amount'] ? 'block' : 'none'">{{ errors()['amount'] }}</span></div>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn btn-outline" (click)="editing.set(false)">Cancel</button>

@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -603,6 +604,194 @@ class AffordabilityServiceImplTest {
         when(affordabilityRepository.save(first)).thenThrow(new IllegalStateException("db down"));
 
         assertThrows(IllegalStateException.class, () -> affordabilityService.softDeleteAll(userId));
+    }
+
+    @Test
+    void anUnknownPaymentMethodIsRejected() {
+        AffordabilityRequest request = request("Phone", "1000", LocalDate.now());
+        request.setPaymentMethod(" Card ");
+
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> affordabilityService.check(userId, request));
+
+        assertEquals("Payment method must be cash or emi", exception.getMessage());
+        verifyNoInteractions(affordabilityRepository);
+    }
+
+    @Test
+    void emiWithoutATenureIsRejected() {
+        AffordabilityRequest request = request("Phone", "1000", LocalDate.now());
+        request.setPaymentMethod("EMI");
+
+        ValidationException missing = assertThrows(ValidationException.class,
+                () -> affordabilityService.check(userId, request));
+        assertEquals("Enter the number of EMI months", missing.getMessage());
+
+        request.setEmiMonths(0);
+        ValidationException zero = assertThrows(ValidationException.class,
+                () -> affordabilityService.check(userId, request));
+        assertEquals("Enter the number of EMI months", zero.getMessage());
+    }
+
+    @Test
+    void emiWithNoPrincipalCannotBeCalculated() {
+        AffordabilityRequest request = request("Phone", "0", LocalDate.now());
+        request.setPaymentMethod("emi");
+        request.setEmiMonths(12);
+
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> affordabilityService.check(userId, request));
+
+        assertEquals("EMI details are not enough to calculate a repayment", exception.getMessage());
+    }
+
+    @Test
+    void anEmiThatFitsTheMonthlyRoomIsAffordableNow() {
+        stubProfileWithSavings("50000", "0", "0");
+        stubSavings();
+        AffordabilityRequest request = request("Phone", "12000", LocalDate.now());
+        request.setPaymentMethod(" EMI ");
+        request.setEmiMonths(12);
+        request.setAnnualInterestPercent(null);
+
+        AffordabilityResponse response = affordabilityService.check(userId, request);
+
+        assertEquals("Affordable now", response.getVerdict());
+        assertEquals("success", response.getLevel());
+        assertEquals("emi", response.getPaymentMethod());
+        assertEquals(new BigDecimal("1000.00"), response.getMonthlyInstallment());
+        assertEquals(new BigDecimal("12000.00"), response.getTotalRepayment());
+        assertTrue(response.getSuggestion().contains("extra EMI"));
+        assertTrue(response.getPlan().stream().anyMatch(line -> line.contains("Financed repayment")));
+    }
+
+    @Test
+    void anEmiAboveTheMonthlyRoomIsNotAffordable() {
+        stubProfile("10000", "0");
+        stubSavings();
+        AffordabilityRequest request = request("Car", "600000", LocalDate.now());
+        request.setPaymentMethod("emi");
+        request.setEmiMonths(12);
+        request.setAnnualInterestPercent(BigDecimal.ZERO);
+
+        AffordabilityResponse response = affordabilityService.check(userId, request);
+
+        assertEquals("Not currently affordable", response.getVerdict());
+        assertEquals("danger", response.getLevel());
+        assertEquals(new BigDecimal("50000.00"), response.getMonthlyInstallment());
+        assertTrue(response.getSuggestion().contains("longer tenure"));
+    }
+
+    @Test
+    void aZeroInstallmentDoesNotFitWhenNoMonthlyRoomRemains() {
+        stubProfile("10000", "0");
+        stubSavings();
+        com.microvault.finance.entity.Budget rent = new com.microvault.finance.entity.Budget();
+        rent.setLimit(new BigDecimal("10000"));
+        when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of(rent));
+        AffordabilityRequest request = request("Coin", "0.01", LocalDate.now());
+        request.setPaymentMethod("emi");
+        request.setEmiMonths(12);
+        request.setAnnualInterestPercent(BigDecimal.ZERO);
+
+        AffordabilityResponse response = affordabilityService.check(userId, request);
+
+        assertEquals(new BigDecimal("0.00"), response.getMonthlyInstallment());
+        assertEquals("Not currently affordable", response.getVerdict());
+        assertTrue(response.getSuggestion().contains("₹0.00"));
+    }
+
+    @Test
+    void interestChangesTheInstallmentAndThePlan() {
+        stubProfile("200000", "0");
+        stubSavings();
+        AffordabilityRequest request = request("Car", "100000", LocalDate.now());
+        request.setPaymentMethod("emi");
+        request.setEmiMonths(12);
+        request.setAnnualInterestPercent(new BigDecimal("12"));
+
+        AffordabilityResponse response = affordabilityService.check(userId, request);
+
+        assertEquals(new BigDecimal("8884.88"), response.getMonthlyInstallment());
+        assertEquals(new BigDecimal("106618.56"), response.getTotalRepayment());
+        assertEquals("Affordable now", response.getVerdict());
+    }
+
+    @Test
+    void oneMonthOfSavingUsesTheSingularWording() {
+        stubProfileWithSavings("10000", "0", "0");
+        stubSavings();
+        AffordabilityRequest request = request("Item", "5000", LocalDate.now());
+        request.setPriority("Want");
+
+        AffordabilityResponse response = affordabilityService.check(userId, request);
+
+        assertEquals(1, response.getMonthsToSave());
+        assertTrue(response.getSuggestion().contains("1 month"));
+        assertTrue(!response.getSuggestion().contains("1 months"));
+        assertTrue(response.getSuggestion().contains("kept for needs"));
+        assertTrue(response.getPlan().stream().anyMatch(line -> line.contains("For a want")));
+        assertTrue(response.getPlan().stream().noneMatch(line -> line.contains("Financed repayment")));
+    }
+
+    @Test
+    void aRoundedAwayShortfallStillPlansForOneMonth() {
+        stubProfileWithSavings("10000", "100.00", "0");
+        stubSavings();
+        AffordabilityRequest request = request("Item", "100.001", LocalDate.now());
+        request.setPriority("Need");
+
+        AffordabilityResponse response = affordabilityService.check(userId, request);
+
+        assertEquals(new BigDecimal("0.00"), response.getShortfall());
+        assertEquals(1, response.getMonthsToSave());
+        assertEquals("Affordable with planning", response.getVerdict());
+        assertTrue(response.getSuggestion().contains("1 month"));
+    }
+
+    @Test
+    void nullBudgetLimitsAndInactiveGoalsDoNotReduceTheRoom() {
+        stubProfile("10000", "0");
+        stubSavings();
+        com.microvault.finance.entity.Budget missing = new com.microvault.finance.entity.Budget();
+        missing.setLimit(null);
+        com.microvault.finance.entity.Budget food = new com.microvault.finance.entity.Budget();
+        food.setLimit(new BigDecimal("0"));
+        when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of(missing, food));
+        com.microvault.finance.entity.Goal paused = new com.microvault.finance.entity.Goal();
+        paused.setStatus("paused");
+        paused.setPlannedContribution(new BigDecimal("9000"));
+        com.microvault.finance.entity.Goal unplanned = new com.microvault.finance.entity.Goal();
+        unplanned.setStatus("active");
+        unplanned.setPlannedContribution(null);
+        when(goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)).thenReturn(List.of(paused, unplanned));
+        AffordabilityRequest request = request("Item", "20000", LocalDate.now());
+
+        AffordabilityResponse response = affordabilityService.check(userId, request);
+
+        assertEquals(2, response.getMonthsToSave());
+        assertEquals("Affordable with planning", response.getVerdict());
+        assertTrue(response.getSuggestion().contains("2 months"));
+    }
+
+    @Test
+    void aCashShortfallWithNothingLeftEachMonthIsNotAffordable() {
+        stubProfile("10000", "0");
+        stubSavings();
+        com.microvault.finance.entity.Budget rent = new com.microvault.finance.entity.Budget();
+        rent.setLimit(new BigDecimal("10000"));
+        when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of(rent));
+        AffordabilityRequest request = request("Item", "500", LocalDate.now());
+
+        AffordabilityResponse response = affordabilityService.check(userId, request);
+
+        assertEquals("Not currently affordable", response.getVerdict());
+        assertEquals("danger", response.getLevel());
+        assertEquals(new BigDecimal("500.00"), response.getShortfall());
+        assertNull(response.getMonthsToSave());
+        assertFalse(response.isCanCreateGoal());
+        assertEquals("The shortfall is ₹500.00 and there is no monthly capacity left for a new savings plan after category budgets and active goals.",
+                response.getSuggestion());
     }
 
     // ---------------------------------------------------------------- helpers

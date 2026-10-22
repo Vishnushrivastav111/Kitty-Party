@@ -1,5 +1,6 @@
 package com.microvault.finance.controller;
 
+import com.microvault.finance.dto.SavingsOverviewResponse;
 import com.microvault.finance.dto.SavingsRequest;
 import com.microvault.finance.dto.SavingsResponse;
 import com.microvault.finance.exception.ResourceNotFoundException;
@@ -71,6 +72,30 @@ class SavingsControllerTest {
                 .andExpect(jsonPath("$[0].title").value("FD"))
                 .andExpect(jsonPath("$[0].amount").value(5000))
                 .andExpect(jsonPath("$[0].date").value("2026-09-01"));
+    }
+
+    @Test
+    void overviewReturnsAllocatedUnallocatedAndEmergencySavings() throws Exception {
+        SavingsOverviewResponse overview = new SavingsOverviewResponse();
+        overview.setAllocatedSavings(new BigDecimal("40000.00"));
+        overview.setUnallocatedLiquid(new BigDecimal("10000.00"));
+        overview.setEmergencyReserve(new BigDecimal("5000.00"));
+        overview.setTotalSavings(new BigDecimal("55000.00"));
+        overview.setInvestments(new BigDecimal("2000.00"));
+        overview.setProtectedForNeeds(new BigDecimal("15000.00"));
+        overview.setAvailableForWants(new BigDecimal("0.00"));
+        when(savingsService.overview(userId)).thenReturn(overview);
+
+        mockMvc.perform(get("/api/savings/overview").header("Authorization", BEARER))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allocatedSavings").value(40000.00))
+                .andExpect(jsonPath("$.unallocatedLiquid").value(10000.00))
+                .andExpect(jsonPath("$.emergencyReserve").value(5000.00))
+                .andExpect(jsonPath("$.totalSavings").value(55000.00))
+                .andExpect(jsonPath("$.investments").value(2000))
+                .andExpect(jsonPath("$.protectedForNeeds").value(15000))
+                .andExpect(jsonPath("$.availableForWants").value(0));
+        verify(savingsService).overview(userId);
     }
 
     @Test

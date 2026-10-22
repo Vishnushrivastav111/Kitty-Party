@@ -61,15 +61,10 @@ export class AdminOverviewComponent {
       destroyChart(canvas);
       return;
     }
-    const config = this.configFor(graph.id, data);
-    if (!config) {
-      destroyChart(canvas);
-      return;
-    }
-    mountChart(canvas, config);
+    mountChart(canvas, this.configFor(graph.id, data));
   }
 
-  private configFor(id: string, data: AdminInsights): ChartConfiguration | null {
+  private configFor(id: string, data: AdminInsights): ChartConfiguration {
     if (id === 'status') {
       return { type: 'pie', data: { labels: data.statusLabels, datasets: [{ data: data.statusValues, backgroundColor: [CHART_COLORS[5], CHART_COLORS[3]], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } };
     }

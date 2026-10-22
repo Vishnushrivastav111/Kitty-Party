@@ -3,7 +3,9 @@ package com.microvault.finance.serviceimpl;
 import com.microvault.finance.dto.BudgetRequest;
 import com.microvault.finance.dto.BudgetResponse;
 import com.microvault.finance.entity.Budget;
+import com.microvault.finance.entity.Goal;
 import com.microvault.finance.entity.Transaction;
+import com.microvault.finance.exception.ValidationException;
 import com.microvault.finance.exception.DuplicateResourceException;
 import com.microvault.finance.exception.ResourceNotFoundException;
 import com.microvault.finance.entity.FinanceProfile;
@@ -31,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -302,6 +305,111 @@ class BudgetServiceImplTest {
         budgetService.softDeleteAll(userId);
 
         verify(budgetRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsABudgetBeforeFinancialSetup() {
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.empty());
+        when(budgetRepository.findByUserIdAndCategoryIgnoreCaseAndDeletedFalse(userId, "Food")).thenReturn(Optional.empty());
+
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> budgetService.create(userId, request("Food", "100", null)));
+
+        assertEquals("Complete financial setup before allocating a budget.", exception.getMessage());
+        verify(budgetRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsABudgetWhenIncomeIsMissing() {
+        FinanceProfile broke = new FinanceProfile();
+        broke.setMonthlyIncome(BigDecimal.ZERO);
+        broke.setAdditionalIncome(BigDecimal.ZERO);
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(broke));
+        when(budgetRepository.findByUserIdAndCategoryIgnoreCaseAndDeletedFalse(userId, "Food")).thenReturn(Optional.empty());
+
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> budgetService.create(userId, request("Food", "100", null)));
+
+        assertEquals("Add your monthly income in financial setup before allocating a budget.", exception.getMessage());
+    }
+
+    @Test
+    void createRejectsALimitAboveTheCapacityLeftByGoalsAndOtherBudgets() {
+        FinanceProfile income = new FinanceProfile();
+        income.setMonthlyIncome(new BigDecimal("10000"));
+        income.setAdditionalIncome(BigDecimal.ZERO);
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(income));
+        when(budgetRepository.findByUserIdAndCategoryIgnoreCaseAndDeletedFalse(userId, "Food")).thenReturn(Optional.empty());
+        Goal active = new Goal();
+        active.setStatus("active");
+        active.setPlannedContribution(new BigDecimal("2000"));
+        Goal paused = new Goal();
+        paused.setStatus("paused");
+        paused.setPlannedContribution(new BigDecimal("9000"));
+        Goal unplanned = new Goal();
+        unplanned.setStatus("ACTIVE");
+        unplanned.setPlannedContribution(null);
+        when(goalRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId)).thenReturn(List.of(active, paused, unplanned));
+        Budget other = stored("Rent", "6000");
+        other.setId(UUID.randomUUID());
+        Budget noLimit = stored("Misc", "1");
+        noLimit.setId(UUID.randomUUID());
+        noLimit.setLimit(null);
+        when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of(other, noLimit));
+
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> budgetService.create(userId, request("Food", "2001", null)));
+
+        assertEquals("Your available budget capacity is ₹8000.00. You have already allocated ₹6000.00, so you can allocate up to ₹2000.00 more.",
+                exception.getMessage());
+        verify(budgetRepository, never()).save(any());
+    }
+
+    @Test
+    void createAcceptsALimitThatUsesTheLastOfTheCapacity() {
+        FinanceProfile income = new FinanceProfile();
+        income.setMonthlyIncome(null);
+        income.setAdditionalIncome(new BigDecimal("5000"));
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(income));
+        when(budgetRepository.findByUserIdAndCategoryIgnoreCaseAndDeletedFalse(userId, "Food")).thenReturn(Optional.empty());
+        when(transactionRepository.findByUserIdAndDeletedFalseOrderByDateDescCreatedAtDesc(userId)).thenReturn(List.of());
+
+        BudgetResponse response = budgetService.create(userId, request("Food", "5000", null));
+
+        assertEquals(new BigDecimal("5000"), response.getLimit());
+        assertEquals("Within budget", response.getUsage());
+    }
+
+    @Test
+    void updateIgnoresTheBudgetBeingEditedWhenCheckingCapacity() {
+        FinanceProfile income = new FinanceProfile();
+        income.setMonthlyIncome(new BigDecimal("8000"));
+        income.setAdditionalIncome(BigDecimal.ZERO);
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(income));
+        Budget self = stored("Food", "7000");
+        Budget other = stored("Rent", "6000");
+        other.setId(UUID.randomUUID());
+        when(budgetRepository.findByIdAndUserIdAndDeletedFalse(id, userId)).thenReturn(Optional.of(self));
+        when(budgetRepository.findByUserIdAndCategoryIgnoreCaseAndDeletedFalse(userId, "Food")).thenReturn(Optional.of(self));
+        when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of(self, other));
+        when(transactionRepository.findByUserIdAndDeletedFalseOrderByDateDescCreatedAtDesc(userId)).thenReturn(List.of());
+
+        BudgetResponse response = budgetService.update(userId, id, request("Food", "2000", null));
+
+        assertEquals(new BigDecimal("2000"), response.getLimit());
+    }
+
+    @Test
+    void aFailedAlertRefreshDoesNotUndoTheBudget() {
+        when(budgetRepository.findByUserIdAndCategoryIgnoreCaseAndDeletedFalse(userId, "Food")).thenReturn(Optional.empty());
+        when(transactionRepository.findByUserIdAndDeletedFalseOrderByDateDescCreatedAtDesc(userId)).thenReturn(List.of());
+        doThrow(new IllegalStateException("alerts down")).when(budgetEffects).refreshAfterCommit(userId);
+
+        BudgetResponse response = budgetService.create(userId, request("Food", "100", null));
+
+        assertEquals("Food", response.getCategory());
+        assertEquals(new BigDecimal("100"), response.getLimit());
+        verify(budgetEffects).refreshAfterCommit(userId);
     }
 
     // ---------------------------------------------------------------- helpers

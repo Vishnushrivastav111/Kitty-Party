@@ -12,12 +12,14 @@ import com.microvault.finance.dto.GoalResponse;
 import com.microvault.finance.dto.MonthlySummaryResponse;
 import com.microvault.finance.dto.ReportRequest;
 import com.microvault.finance.dto.ReportResponse;
+import com.microvault.finance.dto.SavingsOverviewResponse;
 import com.microvault.finance.dto.SavingsRequest;
 import com.microvault.finance.dto.SavingsResponse;
 import com.microvault.finance.dto.TransactionRequest;
 import com.microvault.finance.dto.TransactionResponse;
 import com.microvault.finance.entity.AffordabilityCheck;
 import com.microvault.finance.entity.Budget;
+import com.microvault.finance.entity.BudgetNotification;
 import com.microvault.finance.entity.FinanceProfile;
 import com.microvault.finance.entity.Goal;
 import com.microvault.finance.entity.Report;
@@ -47,8 +49,8 @@ class ModelClassesTest {
                 AffordabilityRequest.class, AffordabilityResponse.class, BudgetRequest.class, BudgetResponse.class,
                 FinanceProfileRequest.class, FinanceProfileResponse.class, FinanceWorkspaceResponse.class,
                 GoalRequest.class, GoalResponse.class, MonthlySummaryResponse.class, ReportRequest.class,
-                ReportResponse.class, SavingsRequest.class, SavingsResponse.class, TransactionRequest.class,
-                TransactionResponse.class);
+                ReportResponse.class, SavingsOverviewResponse.class, SavingsRequest.class, SavingsResponse.class,
+                TransactionRequest.class, TransactionResponse.class);
         for (Class<?> dto : dtos) {
             assertTrue(BeanVerifier.verify(dto) > 0, dto.getSimpleName());
         }
@@ -57,8 +59,8 @@ class ModelClassesTest {
     @Test
     void entitiesRoundTripEveryProperty() throws Exception {
         List<Class<?>> entities = List.of(
-                AffordabilityCheck.class, Budget.class, FinanceProfile.class, Goal.class, Report.class,
-                SavingsEntry.class, Transaction.class);
+                AffordabilityCheck.class, Budget.class, BudgetNotification.class, FinanceProfile.class, Goal.class,
+                Report.class, SavingsEntry.class, Transaction.class);
         for (Class<?> entity : entities) {
             assertTrue(BeanVerifier.verify(entity) > 0, entity.getSimpleName());
         }

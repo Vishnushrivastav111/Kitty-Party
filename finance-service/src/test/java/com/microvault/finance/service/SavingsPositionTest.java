@@ -80,6 +80,25 @@ class SavingsPositionTest {
     }
 
     @Test
+    void nullRowsInsideTheListsAreSkipped() {
+        FinanceProfile profile = profile("1000", "100");
+        profile.setInvestments(new BigDecimal("12.5"));
+        SavingsEntry noAmount = new SavingsEntry();
+        noAmount.setCategory("Deposit");
+        Goal noSaved = new Goal();
+
+        SavingsPosition.Snapshot snapshot = SavingsPosition.of(
+                profile,
+                java.util.Arrays.asList(null, noAmount, entry("50", "Deposit", false)),
+                java.util.Arrays.asList((Goal) null, noSaved, goal("25")));
+
+        assertEquals(new BigDecimal("25.00"), snapshot.allocated());
+        assertEquals(new BigDecimal("950.00"), snapshot.unallocatedLiquid());
+        assertEquals(new BigDecimal("100.00"), snapshot.emergencyReserve());
+        assertEquals(new BigDecimal("12.50"), snapshot.investments());
+    }
+
+    @Test
     void nullProfileEntriesAndGoalsAreSafe() {
         SavingsPosition.Snapshot snapshot = SavingsPosition.of(null, null, null);
         assertEquals(new BigDecimal("0.00"), snapshot.totalSavings());

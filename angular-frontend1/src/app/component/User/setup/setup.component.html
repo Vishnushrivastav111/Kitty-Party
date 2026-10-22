@@ -22,7 +22,7 @@
         <div class="form-group"><label for="savingsType">Primary Savings Type</label>
           <select id="savingsType" name="savingsType" [(ngModel)]="savingsType"><option value="">Select (optional)</option><option>Bank Savings</option><option>Fixed Deposit</option><option>Recurring Deposit</option><option>Cash</option><option>Other</option></select>
         </div>
-        <div class="form-group"><label for="investments">Total Investments (₹)</label><input id="investments" type="number" name="investments" min="0" [(ngModel)]="investments" placeholder="e.g. 50000" (ngModelChange)="touch('investments', optionalAmountOk($event, 'Investments'))" /><span class="field-error" role="alert" [style.display]="errors()['investments'] ? 'block' : 'none'">{{ errors()['investments'] }}</span></div>
+        <div class="form-group"><label for="investments">Total Investments (₹)</label><input id="investments" type="number" name="investments" min="0" [(ngModel)]="investments" placeholder="Enter total investments, or leave empty" (ngModelChange)="touch('investments', optionalAmountOk($event, 'Investments'))" /><span class="field-error" role="alert" [style.display]="errors()['investments'] ? 'block' : 'none'">{{ errors()['investments'] }}</span></div>
         <label>Investment Types (select all that apply)</label>
         <div class="check-row">
           @for (item of investOptions; track item) {
@@ -36,12 +36,12 @@
           <label><input type="radio" name="hasGoal" value="no" [(ngModel)]="hasGoal" /> No</label>
         </div>
         @if (hasGoal === 'yes') {
-          <div class="form-group"><label for="primaryGoal">Goal Title</label><input id="primaryGoal" name="primaryGoal" [(ngModel)]="primaryGoal" placeholder="e.g. Emergency fund" (ngModelChange)="touch('primaryGoal', goalTitleOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['primaryGoal'] ? 'block' : 'none'">{{ errors()['primaryGoal'] }}</span></div>
+          <div class="form-group"><label for="primaryGoal">Goal Title</label><input id="primaryGoal" name="primaryGoal" [(ngModel)]="primaryGoal" placeholder="Enter goal title" (ngModelChange)="touch('primaryGoal', goalTitleOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['primaryGoal'] ? 'block' : 'none'">{{ errors()['primaryGoal'] }}</span></div>
           <div class="form-group"><label>Goal Category</label>
             <select name="goalCategory" [(ngModel)]="goalCategory" (ngModelChange)="touch('goalCategory', choiceOk($event))"><option value="">Select</option><option>Emergency</option><option>Travel</option><option>Education</option><option>Home</option><option>Personal</option><option>Other</option></select>
             <span class="field-error" [style.display]="errors()['goalCategory'] ? 'block' : 'none'">{{ errors()['goalCategory'] }}</span>
           </div>
-          <div class="form-group"><label for="goalTarget">Target Amount (₹)</label><input id="goalTarget" type="number" name="goalTarget" min="1" [(ngModel)]="goalTarget" placeholder="e.g. 50000" (ngModelChange)="touch('goalTarget', goalTargetOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['goalTarget'] ? 'block' : 'none'">{{ errors()['goalTarget'] }}</span></div>
+          <div class="form-group"><label for="goalTarget">Target Amount (₹)</label><input id="goalTarget" type="number" name="goalTarget" min="1" [(ngModel)]="goalTarget" placeholder="Enter target amount in ₹" (ngModelChange)="touch('goalTarget', goalTargetOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['goalTarget'] ? 'block' : 'none'">{{ errors()['goalTarget'] }}</span></div>
           <div class="form-group"><label for="goalDate">Deadline</label><input id="goalDate" type="date" name="goalDate" [(ngModel)]="goalDate" [min]="today" (ngModelChange)="touch('goalDate', goalDateOk($event))" /><span class="field-error" role="alert" [style.display]="errors()['goalDate'] ? 'block' : 'none'">{{ errors()['goalDate'] }}</span></div>
         }
         <div class="summary-box">

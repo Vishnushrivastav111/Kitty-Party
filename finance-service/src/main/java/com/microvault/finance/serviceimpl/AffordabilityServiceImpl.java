@@ -245,7 +245,7 @@ public class AffordabilityServiceImpl implements AffordabilityService {
     }
 
     private String protectionNote(boolean need, BigDecimal protectedSavings) {
-        if (need || protectedSavings.signum() <= 0) {
+        if (need) {
             return "";
         }
         return " For a want, " + FinancialPlan.rupee(protectedSavings) + " of your savings ("

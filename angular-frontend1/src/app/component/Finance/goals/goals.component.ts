@@ -68,8 +68,7 @@ export class GoalsComponent {
       return;
     }
     if (this.graphIndex() === 0) {
-      const series = goalSeries(goals);
-      if (!series) return;
+      const series = goalSeries(goals)!;
       mountChart(canvas, {
         type: 'bar',
         data: {

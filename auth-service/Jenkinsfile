@@ -1,0 +1,30 @@
+// Auth service. The agent needs JDK 17+ and Maven on PATH.
+// `mvn verify` fails the build unless JaCoCo reports 100% line, instruction, and branch coverage.
+pipeline {
+  agent any
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+  }
+  stages {
+    stage('Test') {
+      steps {
+        dir('auth-service') {
+          script {
+            if (isUnix()) {
+              sh 'mvn -B clean verify'
+            } else {
+              bat 'mvn -B clean verify'
+            }
+          }
+        }
+      }
+    }
+  }
+  post {
+    always {
+      junit allowEmptyResults: true, testResults: 'auth-service/target/surefire-reports/*.xml'
+      archiveArtifacts artifacts: 'auth-service/target/site/jacoco/**', allowEmptyArchive: true
+    }
+  }
+}

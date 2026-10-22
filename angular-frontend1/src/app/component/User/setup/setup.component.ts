@@ -139,11 +139,11 @@ export class SetupComponent implements OnInit {
         try {
           await this.vault.addGoal({
             title: this.primaryGoal.trim(),
-            target: num(this.goalTarget) || 1,
+            target: num(this.goalTarget),
             saved: 0,
             deadline: this.goalDate,
             status: 'draft',
-            category: this.goalCategory || 'Personal',
+            category: this.goalCategory,
           });
         } catch (error) {
           followUp.push(parseApiError(error).message);

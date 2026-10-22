@@ -12,7 +12,7 @@ export interface ApprovalRow { id: string; requesterId: string; requesterName?: 
 export class AdminApprovalsComponent {
   private readonly api = inject(ApiService);
   readonly capabilities = API_CAPABILITIES; readonly search = signal(''); readonly status = signal('pending'); readonly type = signal(''); readonly pageNo = signal(1); readonly loading = signal(false); readonly error = signal(''); readonly rows = signal<ApprovalRow[]>([]);
-  readonly page = computed(() => queryRows(this.rows(), this.search(), ['requestType', 'requesterName', 'requesterEmail', 'resourceId', 'reason', 'status'], { status: this.status() === 'all' ? '' : this.status(), type: this.type() }, this.pageNo(), 6));
+  readonly page = computed(() => queryRows(this.rows(), this.search(), ['requestType', 'requesterName', 'requesterEmail', 'resourceId', 'reason', 'status'], { status: this.status() === 'all' ? '' : this.status(), requestType: this.type() }, this.pageNo(), 6));
 
   readonly date = (value?: string): string => (value ? formatDate(value.slice(0, 10)) : '—');
   typeLabel(type: string): string { return type === 'transaction-delete' ? 'Transaction deletion' : type; }

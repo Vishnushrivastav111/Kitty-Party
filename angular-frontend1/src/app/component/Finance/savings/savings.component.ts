@@ -55,8 +55,7 @@ export class SavingsComponent {
       return;
     }
     if (this.graphIndex() === 0) {
-      const series = savingsTrend([...rows].reverse());
-      if (!series) return;
+      const series = savingsTrend([...rows].reverse())!;
       mountChart(canvas, {
         type: 'line',
         data: { labels: series.labels.map((label) => formatDate(label)), datasets: [{ label: 'Recorded entries', data: series.data, borderColor: CHART_COLORS[0], backgroundColor: 'rgba(13,148,136,0.15)', fill: true, tension: 0.35 }] },

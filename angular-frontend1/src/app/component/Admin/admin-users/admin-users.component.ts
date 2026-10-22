@@ -46,7 +46,7 @@ export class AdminUsersComponent {
     if (duplicate) errors['email'] = 'Email already in use';
     this.errors.set(errors);
     if (Object.values(errors).some(Boolean)) return;
-    const body: Record<string, unknown> = { fullName: this.form.fullName.trim(), email: this.form.email.trim().toLowerCase(), phone: (this.form.phone || '').trim(), status: this.form.status || 'active' };
+    const body: Record<string, unknown> = { fullName: this.form.fullName.trim(), email: this.form.email.trim().toLowerCase(), phone: this.form.phone!.trim(), status: this.form.status || 'active' };
     if (this.password) body['password'] = this.password;
     this.busy.set(true);
     try {

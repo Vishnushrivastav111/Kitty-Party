@@ -44,6 +44,16 @@ class BudgetEffectsTest {
     }
 
     @Test
+    void aFailureRefreshingAlertsIsSwallowedAfterOverrunsAreCovered() {
+        doThrow(new IllegalStateException("alerts down")).when(alerts).evaluate(userId);
+
+        new BudgetEffects(alerts, coverage).refreshAfterCommit(userId);
+
+        verify(coverage).reconcile(userId);
+        verify(alerts).evaluate(userId);
+    }
+
+    @Test
     void insideATransactionTheWorkWaitsForTheCommit() {
         TransactionSynchronizationManager.initSynchronization();
         try {

@@ -109,9 +109,6 @@ export class RegisterComponent {
       confirmPassword: this.confirmPassword !== this.password ? 'Passwords do not match' : '',
       terms: this.terms && this.termsRead ? '' : this.termsRead ? 'Please accept the Terms & Conditions' : 'Please read the Terms & Conditions first. Open them from the link, scroll to the end, then accept.',
     };
-    if (!errors['firstName'] && !errors['lastName'] && fullName.trim().length < 3) {
-      errors['lastName'] = 'Enter a first and last name';
-    }
     this.errors.set(errors);
     this.formError.set('');
     if (Object.values(errors).some(Boolean)) return;

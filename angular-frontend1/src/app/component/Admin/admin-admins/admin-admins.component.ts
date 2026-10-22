@@ -47,7 +47,7 @@ export class AdminAdminsComponent {
     };
     this.errors.set(errors);
     if (Object.values(errors).some(Boolean)) return;
-    const body: Record<string, unknown> = { fullName: this.form.fullName.trim(), email: this.form.email.trim().toLowerCase(), phone: (this.form.phone || '').trim(), status: this.form.status || 'active', role: 'admin' };
+    const body: Record<string, unknown> = { fullName: this.form.fullName.trim(), email: this.form.email.trim().toLowerCase(), phone: this.form.phone!.trim(), status: this.form.status || 'active', role: 'admin' };
     if (this.password) body['password'] = this.password;
     this.busy.set(true);
     try {

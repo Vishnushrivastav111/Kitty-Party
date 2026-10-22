@@ -59,8 +59,7 @@ export class BudgetComponent {
       return;
     }
     if (this.graphIndex() === 0) {
-      const series = budgetComparison(rows);
-      if (!series) return;
+      const series = budgetComparison(rows)!;
       mountChart(canvas, {
         type: 'bar',
         data: {

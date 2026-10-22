@@ -1,0 +1,29 @@
+// Dashboard service. The agent needs JDK 17+ and Maven on PATH.
+pipeline {
+  agent any
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+  }
+  stages {
+    stage('Test') {
+      steps {
+        dir('dashboard-service') {
+          script {
+            if (isUnix()) {
+              sh 'mvn -B clean verify'
+            } else {
+              bat 'mvn -B clean verify'
+            }
+          }
+        }
+      }
+    }
+  }
+  post {
+    always {
+      junit allowEmptyResults: true, testResults: 'dashboard-service/target/surefire-reports/*.xml'
+      archiveArtifacts artifacts: 'dashboard-service/target/site/jacoco/**', allowEmptyArchive: true
+    }
+  }
+}

@@ -60,7 +60,7 @@ export function successMessage(method: string, url: string): string | null {
 
   const noun = NOUNS[parts[0]];
   if (!noun) return null;
-  if (parts[2] && !ID.test(parts[1] || '')) return null;
+  if (parts.length >= 3 && !ID.test(parts[1])) return null;
   const single = parts.length >= 2 && ID.test(parts[1]);
   if (single && parts.length === 2) return `${noun.one} ${verb} successfully`;
   if (parts.length === 1 && method.toUpperCase() === 'DELETE') return `All ${noun.many} deleted successfully`;

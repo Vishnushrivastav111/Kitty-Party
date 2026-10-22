@@ -18,7 +18,7 @@
             }
             <div class="auth-field">
               <label for="email">Email address</label>
-              <input id="email" type="email" name="email" [ngModel]="email" (ngModelChange)="onEmail($event)" placeholder="e.g. name@example.com" autocomplete="username"
+              <input id="email" type="email" name="email" [ngModel]="email" (ngModelChange)="onEmail($event)" placeholder="Enter your email" autocomplete="username"
                 [class.input-error]="errors()['email']" [class.input-success]="!errors()['email'] && email" />
               <span class="field-error" role="alert" [style.display]="errors()['email'] ? 'block' : 'none'">{{ errors()['email'] }}</span>
             </div>

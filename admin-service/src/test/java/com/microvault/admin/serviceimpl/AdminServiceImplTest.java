@@ -238,6 +238,65 @@ class AdminServiceImplTest {
     }
 
     @Test
+    void dismissedAndExpiredNotificationsAreHidden() {
+        Notification dismissed = notification(ITEM, OWNER, LocalDateTime.now());
+        dismissed.setDismissed(true);
+        Notification expired = notification(OTHER, OWNER, LocalDateTime.now());
+        expired.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        Notification current = notification(UUID.randomUUID(), OWNER, LocalDateTime.now());
+        current.setExpiresAt(LocalDateTime.now().plusDays(1));
+        when(notificationRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(OWNER))
+                .thenReturn(List.of(dismissed, expired, current));
+
+        List<NotificationResponse> rows = service.notifications(OWNER);
+
+        assertEquals(1, rows.size());
+        assertEquals(current.getId(), rows.get(0).getId());
+    }
+
+    @Test
+    void markReadKeepsAnExistingReadTime() {
+        Notification notification = notification(ITEM, OWNER, null);
+        LocalDateTime readAt = LocalDateTime.of(2026, 1, 1, 0, 0);
+        notification.setReadAt(readAt);
+        when(notificationRepository.findByIdAndUserIdAndDeletedFalse(ITEM, OWNER)).thenReturn(Optional.of(notification));
+
+        service.markRead(OWNER, ITEM);
+
+        assertTrue(notification.isRead());
+        assertEquals(readAt, notification.getReadAt());
+        verify(notificationRepository).save(notification);
+    }
+
+    @Test
+    void markAllReadLeavesNotificationsThatAreAlreadyRead() {
+        Notification already = notification(ITEM, OWNER, null);
+        LocalDateTime readAt = LocalDateTime.of(2026, 2, 2, 0, 0);
+        already.setRead(true);
+        already.setReadAt(readAt);
+        when(notificationRepository.findByUserIdAndDeletedFalseOrderByCreatedAtDesc(OWNER))
+                .thenReturn(List.of(already));
+
+        service.markAllRead(OWNER);
+
+        assertEquals(readAt, already.getReadAt());
+        verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
+    void aBlankNewsTitleAndBodyAreLeftUnchanged() {
+        News stored = news(ITEM, "low", "draft", null);
+        when(newsRepository.findByIdAndDeletedFalse(ITEM)).thenReturn(Optional.of(stored));
+        when(authDirectory.listUsers(null)).thenReturn(List.of());
+        echoNews();
+
+        service.updateNews(ITEM, newsRequest("   ", "   ", "low", "draft"));
+
+        assertEquals("Old title", stored.getTitle());
+        assertEquals("Old body", stored.getBody());
+    }
+
+    @Test
     void deleteNotificationIsASoftDelete() {
         Notification notification = notification(ITEM, OWNER, null);
         when(notificationRepository.findByIdAndUserIdAndDeletedFalse(ITEM, OWNER)).thenReturn(Optional.of(notification));

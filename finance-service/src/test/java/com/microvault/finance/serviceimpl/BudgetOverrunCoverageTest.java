@@ -17,7 +17,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -30,9 +32,12 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class BudgetOverrunCoverageTest {
@@ -204,6 +209,204 @@ class BudgetOverrunCoverageTest {
 
         assertTrue(saved.isEmpty());
         assertTrue(notices.isEmpty());
+    }
+
+    @Test
+    void noBudgetsMeansNothingIsReadOrMoved() {
+        when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of());
+
+        coverage.reconcile(userId);
+
+        verify(transactionRepository, never()).findByUserIdAndDeletedFalseOrderByDateDescCreatedAtDesc(userId);
+        assertTrue(saved.isEmpty());
+    }
+
+    @Test
+    void aMissingOrZeroLimitIsLeftAlone() {
+        food.setLimit(null);
+        Budget zero = new Budget();
+        zero.setId(UUID.randomUUID());
+        zero.setCategory("Travel");
+        zero.setLimit(BigDecimal.ZERO);
+        when(budgetRepository.findByUserIdAndDeletedFalseOrderByCategoryAsc(userId)).thenReturn(List.of(food, zero));
+        spend("5000");
+
+        coverage.reconcile(userId);
+
+        assertTrue(saved.isEmpty());
+        assertTrue(notices.isEmpty());
+    }
+
+    @Test
+    void entriesThatAreNotTaggedForThisBudgetDoNotCountAsCovered() {
+        profile("3000", "1000");
+        SavingsEntry other = covered("Deposit", "50", null, 1);
+        other.setNote(null);
+        stored.add(other);
+        SavingsEntry manual = covered("Deposit", "100", null, 2);
+        manual.setNote("manual");
+        stored.add(manual);
+        spend("2500");
+
+        coverage.reconcile(userId);
+
+        assertEquals(1, saved.size());
+        assertEquals(0, new BigDecimal("1500").compareTo(saved.get(0).getAmount()));
+        assertEquals(false, other.isDeleted());
+        assertEquals(0, new BigDecimal("100").compareTo(manual.getAmount()));
+    }
+
+    @Test
+    void archivedEmptyAndMissingGoalBalancesAreSkipped() {
+        profile("0", "0");
+        Goal archived = goal("Archived trip", "1000");
+        archived.setStatus("ARCHIVED");
+        Goal empty = goal("Empty", "0");
+        Goal missing = goal("Missing", "1");
+        missing.setSaved(null);
+        Goal usable = goal("Usable", "400");
+        usable.setTitle("T".repeat(200));
+        spend("2000");
+
+        coverage.reconcile(userId);
+
+        assertEquals(1, saved.size());
+        assertEquals(usable.getId(), saved.get(0).getGoalId());
+        assertEquals(120, saved.get(0).getTitle().length());
+        assertEquals(0, BigDecimal.ZERO.compareTo(usable.getSaved()));
+        assertEquals(0, new BigDecimal("1000").compareTo(archived.getSaved()));
+        assertTrue(notices.get(0).getMessage().contains("from goal savings"));
+        assertTrue(notices.get(0).getMessage().contains("could not be covered"));
+        assertTrue(!notices.get(0).getMessage().contains("available savings"));
+    }
+
+    @Test
+    void onlyTheEmergencyReserveIsUsedWhenNothingElseRemains() {
+        profile("1000", "1000");
+        spend("1400");
+
+        coverage.reconcile(userId);
+
+        assertEquals(1, saved.size());
+        assertEquals("Emergency withdrawal", saved.get(0).getCategory());
+        assertEquals(0, new BigDecimal("400").compareTo(saved.get(0).getAmount()));
+        assertTrue(notices.get(0).getMessage().contains("from your emergency reserve"));
+        assertTrue(!notices.get(0).getMessage().contains("could not be covered"));
+        assertTrue(!notices.get(0).getMessage().contains("goal savings"));
+    }
+
+    @Test
+    void anExistingNoticeForTheSameCoveredAmountIsNotRepeated() {
+        profile("3000", "1000");
+        spend("2500");
+        when(notificationRepository.existsByUserIdAndReferenceKeyAndDeletedFalse(any(), any())).thenReturn(true);
+
+        coverage.reconcile(userId);
+
+        assertEquals(1, saved.size());
+        assertTrue(notices.isEmpty());
+        verify(notificationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void aDuplicateNoticeInsertIsIgnored() {
+        profile("3000", "1000");
+        spend("2500");
+        doThrow(new DataIntegrityViolationException("duplicate")).when(notificationRepository).saveAndFlush(any());
+
+        coverage.reconcile(userId);
+
+        assertEquals(1, saved.size());
+        assertTrue(notices.isEmpty());
+    }
+
+    @Test
+    void givingSavingsBackReopensACompletedGoalAndLeavesADifferentGoalAlone() {
+        profile("3000", "1000");
+        Goal completed = goal("Trip", "100");
+        completed.setStatus("COMPLETED");
+        completed.setTarget(new BigDecimal("200"));
+        completed.setSaved(new BigDecimal("100"));
+        Goal stranger = goal("Other", "80");
+        SavingsEntry fromGoal = covered("Withdrawal", "50", completed.getId(), 2);
+        SavingsEntry unrelated = covered("Withdrawal", "10", stranger.getId(), 1);
+        unrelated.setGoalId(UUID.randomUUID());
+        stored.add(unrelated);
+        stored.add(fromGoal);
+        spend("1000");
+
+        coverage.reconcile(userId);
+
+        assertTrue(fromGoal.isDeleted());
+        assertTrue(unrelated.isDeleted());
+        assertEquals(0, new BigDecimal("150").compareTo(completed.getSaved()));
+        assertEquals("active", completed.getStatus());
+        assertEquals(0, new BigDecimal("80").compareTo(stranger.getSaved()));
+    }
+
+    @Test
+    void givingSavingsBackCapsAGoalAtItsTarget() {
+        profile("0", "0");
+        Goal completed = goal("Trip", "180");
+        completed.setStatus("completed");
+        completed.setTarget(new BigDecimal("200"));
+        SavingsEntry fromGoal = covered("Withdrawal", "50", completed.getId(), 1);
+        stored.add(fromGoal);
+
+        coverage.reconcile(userId);
+
+        assertEquals(0, new BigDecimal("200").compareTo(completed.getSaved()));
+        assertEquals("completed", completed.getStatus());
+    }
+
+    @Test
+    void givingSavingsBackToAGoalWithoutABalanceOrTargetStillAddsTheMoney() {
+        profile("0", "0");
+        Goal goal = goal("Trip", "1");
+        goal.setSaved(null);
+        goal.setTarget(null);
+        goal.setStatus("completed");
+        SavingsEntry fromGoal = covered("Withdrawal", "40", goal.getId(), 1);
+        stored.add(fromGoal);
+
+        coverage.reconcile(userId);
+
+        assertEquals(0, new BigDecimal("40").compareTo(goal.getSaved()));
+        assertEquals("completed", goal.getStatus());
+    }
+
+    @Test
+    void olderDeductionsAreLeftUntouchedOnceTheExcessHasBeenReturned() {
+        profile("0", "0");
+        SavingsEntry oldest = covered("Withdrawal", "500", null, 1);
+        oldest.setCreatedAt(null);
+        SavingsEntry middle = covered("Withdrawal", "100", null, 2);
+        SavingsEntry newest = covered("Withdrawal", "100", null, 3);
+        stored.add(oldest);
+        stored.add(middle);
+        stored.add(newest);
+        spend("1500");
+
+        coverage.reconcile(userId);
+
+        assertTrue(newest.isDeleted());
+        assertTrue(middle.isDeleted());
+        assertEquals(false, oldest.isDeleted());
+        assertEquals(0, new BigDecimal("500").compareTo(oldest.getAmount()));
+        verify(savingsRepository, times(2)).save(any(SavingsEntry.class));
+    }
+
+    @Test
+    void takeReturnsNothingWhenTheNeedOrTheBalanceIsMissing() throws Exception {
+        Method take = BudgetOverrunCoverage.class.getDeclaredMethod("take", BigDecimal.class, BigDecimal.class);
+        take.setAccessible(true);
+
+        assertEquals(new BigDecimal("0.00"), take.invoke(coverage, new BigDecimal("10"), null));
+        assertEquals(new BigDecimal("0.00"), take.invoke(coverage, BigDecimal.ZERO, new BigDecimal("10")));
+        assertEquals(new BigDecimal("0.00"), take.invoke(coverage, new BigDecimal("-1"), new BigDecimal("10")));
+        assertEquals(new BigDecimal("0.00"), take.invoke(coverage, new BigDecimal("10"), BigDecimal.ZERO));
+        assertEquals(new BigDecimal("4.00"), take.invoke(coverage, new BigDecimal("4"), new BigDecimal("9")));
+        assertEquals(new BigDecimal("4.00"), take.invoke(coverage, new BigDecimal("9"), new BigDecimal("4")));
     }
 
     // ---------------------------------------------------------------- helpers

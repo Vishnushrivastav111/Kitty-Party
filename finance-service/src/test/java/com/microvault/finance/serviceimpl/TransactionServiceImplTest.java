@@ -9,6 +9,8 @@ import com.microvault.finance.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -26,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -75,6 +78,16 @@ class TransactionServiceImplTest {
     }
 
     @Test
+    void describeForApprovalRejectsAMissingTransaction() {
+        when(transactionRepository.findById(id)).thenReturn(Optional.empty());
+
+        ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class,
+                () -> transactionService.describeForApproval(userId, id));
+
+        assertEquals("Transaction not found", exception.getMessage());
+    }
+
+    @Test
     void describeForApprovalHidesSomeoneElsesTransaction() {
         Transaction other = new Transaction();
         other.setId(id);
@@ -117,12 +130,35 @@ class TransactionServiceImplTest {
         assertEquals("October", response.getNote());
     }
 
-    @Test
-    void createAcceptsExpenseType() {
+    @ParameterizedTest
+    @CsvSource({
+            "Expense,expense",
+            " REFUND ,refund",
+            "Transfer,transfer",
+            "income,income"
+    })
+    void createAcceptsEachTransactionType(String raw, String expected) {
         TransactionRequest request = request();
-        request.setType("Expense");
+        request.setType(raw);
 
-        assertEquals("expense", transactionService.create(userId, request).getType());
+        assertEquals(expected, transactionService.create(userId, request).getType());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "gift",
+            "bonus",
+            "saving",
+            "loan"
+    })
+    void createRejectsEachUnknownType(String raw) {
+        TransactionRequest request = request();
+        request.setType(raw);
+
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> transactionService.create(userId, request));
+
+        assertEquals("Type must be income, expense, refund, or transfer", exception.getMessage());
     }
 
     @Test
@@ -313,6 +349,29 @@ class TransactionServiceImplTest {
         transactionService.softDeleteAll(userId);
 
         verify(transactionRepository, never()).save(any());
+    }
+
+    @Test
+    void softDeleteInternalRemovesTheOwnersTransaction() {
+        Transaction existing = stored("Bag", "expense");
+        when(transactionRepository.findByIdAndUserIdAndDeletedFalse(id, userId)).thenReturn(Optional.of(existing));
+
+        transactionService.softDeleteInternal(userId, id);
+
+        assertTrue(existing.isDeleted());
+        verify(budgetEffects).refreshAfterCommit(userId);
+    }
+
+    @Test
+    void aFailedAlertRefreshDoesNotUndoTheTransaction() {
+        doThrow(new IllegalStateException("alerts down")).when(budgetEffects).refreshAfterCommit(userId);
+
+        TransactionResponse response = transactionService.create(userId, request());
+
+        assertEquals("Salary", response.getName());
+        assertEquals(new BigDecimal("50000"), response.getAmount());
+        assertEquals("income", response.getType());
+        verify(budgetEffects).refreshAfterCommit(userId);
     }
 
     // ---------------------------------------------------------------- helpers

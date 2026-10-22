@@ -151,18 +151,18 @@ public class GoalServiceImpl implements GoalService {
         }
         int periods = FinancialPlan.contributionPeriods(LocalDate.now(), deadline);
         BigDecimal remaining = target.subtract(saved);
-        if (periods == 0 && remaining.signum() > 0) {
+        if (periods == 0) {
             throw new ValidationException("The deadline has passed. Extend the deadline, reduce the target, or save the goal as a draft.");
         }
         BigDecimal required = FinancialPlan.requiredMonthly(remaining, periods);
         BigDecimal capacity = goalCapacity(userId, profile, goalId);
         BigDecimal planned = plannedInput == null ? required : FinancialPlan.money(plannedInput);
-        if (required != null && planned.compareTo(required) < 0) {
+        if (planned.compareTo(required) < 0) {
             throw new ValidationException("The planned contribution is below the " + FinancialPlan.rupee(required)
                     + " required each month. Extend the deadline, reduce the target, or raise the contribution.");
         }
         BigDecimal room = FinancialPlan.nonNegative(capacity);
-        if (planned != null && planned.compareTo(room) > 0) {
+        if (planned.compareTo(room) > 0) {
             BigDecimal shortfall = planned.subtract(room);
             throw new ValidationException("This goal needs " + FinancialPlan.rupee(planned)
                     + " per month, but only " + FinancialPlan.rupee(room)
@@ -170,7 +170,7 @@ public class GoalServiceImpl implements GoalService {
                     + FinancialPlan.rupee(shortfall)
                     + ". Extend the deadline, reduce the target, pause another goal, or save this goal as a draft.");
         }
-        goal.setPlannedContribution(planned == null ? FinancialPlan.money(null) : planned);
+        goal.setPlannedContribution(planned);
     }
 
     private BigDecimal goalCapacity(UUID userId, FinanceProfile profile, UUID ignoreGoalId) {

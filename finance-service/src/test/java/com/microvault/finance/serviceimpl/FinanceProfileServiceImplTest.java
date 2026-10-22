@@ -456,6 +456,119 @@ class FinanceProfileServiceImplTest {
         assertThrows(ResourceNotFoundException.class, () -> service.summary(userId));
     }
 
+    @Test
+    void summaryExplainsReserveMonthsWhenBudgetsAndAReserveBothExist() {
+        FinanceProfile profile = profile("30000", "0", "0");
+        profile.setCurrentSavings(new BigDecimal("40000"));
+        profile.setEmergencyReserve(new BigDecimal("25000"));
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+        BudgetResponse rent = new BudgetResponse();
+        rent.setLimit(new BigDecimal("10000"));
+        when(budgetService.list(userId)).thenReturn(List.of(rent));
+
+        MonthlySummaryResponse summary = service.summary(userId);
+
+        assertEquals(1, summary.getInsights().stream().filter(note -> note.contains("2.5")).count());
+        assertTrue(summary.getInsights().stream().anyMatch(note -> note.contains("₹20000.00")));
+    }
+
+    @Test
+    void summaryExplainsAMissingReserveAndNoRoomForGoals() {
+        FinanceProfile profile = profile("10000", "0", "0");
+        profile.setCurrentSavings(new BigDecimal("1000"));
+        profile.setEmergencyReserve(BigDecimal.ZERO);
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+        BudgetResponse rent = new BudgetResponse();
+        rent.setLimit(new BigDecimal("8000"));
+        BudgetResponse missing = new BudgetResponse();
+        when(budgetService.list(userId)).thenReturn(List.of(rent, missing));
+        GoalResponse active = new GoalResponse();
+        active.setStatus("active");
+        active.setPlannedContribution(new BigDecimal("5000"));
+        GoalResponse paused = new GoalResponse();
+        paused.setStatus("paused");
+        paused.setPlannedContribution(new BigDecimal("9000"));
+        GoalResponse unplanned = new GoalResponse();
+        unplanned.setStatus("ACTIVE");
+        when(goalService.list(userId)).thenReturn(List.of(active, paused, unplanned));
+
+        MonthlySummaryResponse summary = service.summary(userId);
+
+        assertEquals(0, new BigDecimal("5000").compareTo(summary.getPlannedGoalContributions()));
+        assertEquals(0, new BigDecimal("8000").compareTo(summary.getAllocatedBudgets()));
+        assertTrue(summary.getInsights().stream().anyMatch(note -> note.contains("No emergency reserve")));
+        assertTrue(summary.getInsights().stream().anyMatch(note -> note.contains("above your monthly income")));
+        assertTrue(summary.getInsights().stream().anyMatch(note -> note.contains("Combined active goal contributions")));
+    }
+
+    @Test
+    void summaryExplainsThatThereAreNoBudgetsYet() {
+        FinanceProfile profile = profile("10000", "0", "0");
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+
+        MonthlySummaryResponse summary = service.summary(userId);
+
+        assertTrue(summary.getInsights().stream().anyMatch(note -> note.contains("no category budgets")));
+        assertTrue(summary.getInsights().stream().noneMatch(note -> note.contains("Combined active")));
+        assertTrue(summary.getInsights().stream().anyMatch(note -> note.contains("₹10000.00")));
+    }
+
+    @Test
+    void summaryWithBudgetsEqualToIncomeDoesNotMentionGoalRoom() {
+        FinanceProfile profile = profile("10000", "0", "0");
+        profile.setEmergencyReserve(BigDecimal.ZERO);
+        profile.setCurrentSavings(BigDecimal.ZERO);
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(profile));
+        BudgetResponse rent = new BudgetResponse();
+        rent.setLimit(new BigDecimal("10000"));
+        when(budgetService.list(userId)).thenReturn(List.of(rent));
+
+        MonthlySummaryResponse summary = service.summary(userId);
+
+        assertTrue(summary.getInsights().stream().anyMatch(note -> note.contains("No emergency reserve")));
+        assertTrue(summary.getInsights().stream().noneMatch(note -> note.contains("Combined active")));
+        assertTrue(summary.getInsights().stream().noneMatch(note -> note.startsWith("About ")));
+    }
+
+    @Test
+    void savingAgainFillsLegacyAmountsThatAreStillEmpty() {
+        FinanceProfile existing = new FinanceProfile();
+        existing.setId(UUID.randomUUID());
+        existing.setUserId(userId);
+        existing.setMonthlyExpenses(null);
+        existing.setOtherCommitments(null);
+        existing.setLoanAmount(null);
+        existing.setMonthlyEmi(null);
+        existing.setMonthlyBudget(null);
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(existing));
+
+        service.saveForUser(userId, minimalRequest("1500"));
+
+        assertEquals(BigDecimal.ZERO, existing.getMonthlyExpenses());
+        assertEquals(BigDecimal.ZERO, existing.getOtherCommitments());
+        assertEquals(BigDecimal.ZERO, existing.getLoanAmount());
+        assertEquals(BigDecimal.ZERO, existing.getMonthlyEmi());
+        assertEquals(BigDecimal.ZERO, existing.getMonthlyBudget());
+    }
+
+    @Test
+    void savingAgainKeepsEveryLegacyAmountThatWasAlreadyStored() {
+        FinanceProfile existing = profile("1000", "20000", "5000");
+        existing.setOtherCommitments(new BigDecimal("300"));
+        existing.setLoanAmount(new BigDecimal("9000"));
+        existing.setMonthlyBudget(new BigDecimal("4000"));
+        when(financeProfileRepository.findByUserIdAndDeletedFalse(userId)).thenReturn(Optional.of(existing));
+
+        service.saveForUser(userId, minimalRequest("2200"));
+
+        assertEquals(new BigDecimal("2200"), existing.getMonthlyIncome());
+        assertEquals(new BigDecimal("20000"), existing.getMonthlyExpenses());
+        assertEquals(new BigDecimal("300"), existing.getOtherCommitments());
+        assertEquals(new BigDecimal("9000"), existing.getLoanAmount());
+        assertEquals(new BigDecimal("5000"), existing.getMonthlyEmi());
+        assertEquals(new BigDecimal("4000"), existing.getMonthlyBudget());
+    }
+
     // ---------------------------------------------------------------- skip / active users
 
     @Test

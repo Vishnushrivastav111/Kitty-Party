@@ -1,0 +1,32 @@
+// Angular client. The agent needs Node.js 20+ and Google Chrome.
+// npm run test:coverage fails unless statements, branches, functions, and lines are all 100%.
+pipeline {
+  agent any
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+  }
+  environment {
+    CI = 'true'
+  }
+  stages {
+    stage('Test') {
+      steps {
+        dir('angular-frontend1') {
+          script {
+            if (isUnix()) {
+              sh 'npm ci && npm run test:coverage'
+            } else {
+              bat 'npm ci && npm run test:coverage'
+            }
+          }
+        }
+      }
+    }
+  }
+  post {
+    always {
+      archiveArtifacts artifacts: 'angular-frontend1/coverage/angular-frontend/**', allowEmptyArchive: true
+    }
+  }
+}

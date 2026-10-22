@@ -105,9 +105,6 @@ public class DashboardServiceImpl implements DashboardService {
                 left = BigDecimal.ZERO;
             }
             health = left.multiply(new BigDecimal("100")).divide(income, 0, RoundingMode.HALF_UP).intValue();
-            if (health > 100) {
-                health = 100;
-            }
         }
 
         int activeGoals = 0;

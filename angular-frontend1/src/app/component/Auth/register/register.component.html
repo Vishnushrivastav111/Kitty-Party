@@ -18,27 +18,27 @@
             @if (formError()) { <p class="field-error" role="alert">{{ formError() }}</p> }
             <div class="auth-field">
               <label for="firstName">First name</label>
-              <input id="firstName" name="firstName" [ngModel]="firstName" (ngModelChange)="onFirst($event)" placeholder="e.g. Vishnu" autocomplete="given-name" [class.input-error]="errors()['firstName']" />
+              <input id="firstName" name="firstName" [ngModel]="firstName" (ngModelChange)="onFirst($event)" placeholder="Enter your first name" autocomplete="given-name" [class.input-error]="errors()['firstName']" />
               <span class="field-error" role="alert" [style.display]="errors()['firstName'] ? 'block' : 'none'">{{ errors()['firstName'] }}</span>
             </div>
             <div class="auth-field">
               <label for="middleName">Middle name</label>
-              <input id="middleName" name="middleName" [ngModel]="middleName" (ngModelChange)="onMiddle($event)" placeholder="e.g. Kumar" autocomplete="additional-name" [class.input-error]="errors()['middleName']" />
+              <input id="middleName" name="middleName" [ngModel]="middleName" (ngModelChange)="onMiddle($event)" placeholder="Enter your middle name" autocomplete="additional-name" [class.input-error]="errors()['middleName']" />
               <span class="field-error" role="alert" [style.display]="errors()['middleName'] ? 'block' : 'none'">{{ errors()['middleName'] }}</span>
             </div>
             <div class="auth-field">
               <label for="lastName">Last name</label>
-              <input id="lastName" name="lastName" [ngModel]="lastName" (ngModelChange)="onLast($event)" placeholder="e.g. Shrivastav" autocomplete="family-name" [class.input-error]="errors()['lastName']" />
+              <input id="lastName" name="lastName" [ngModel]="lastName" (ngModelChange)="onLast($event)" placeholder="Enter your last name" autocomplete="family-name" [class.input-error]="errors()['lastName']" />
               <span class="field-error" role="alert" [style.display]="errors()['lastName'] ? 'block' : 'none'">{{ errors()['lastName'] }}</span>
             </div>
             <div class="auth-field">
               <label for="email">Email address</label>
-              <input id="email" type="email" name="email" [ngModel]="email" (ngModelChange)="onEmail($event)" placeholder="e.g. name@example.com" autocomplete="email" [class.input-error]="errors()['email']" />
+              <input id="email" type="email" name="email" [ngModel]="email" (ngModelChange)="onEmail($event)" placeholder="Enter your email" autocomplete="email" [class.input-error]="errors()['email']" />
               <span class="field-error" role="alert" [style.display]="errors()['email'] ? 'block' : 'none'">{{ errors()['email'] }}</span>
             </div>
             <div class="auth-field">
               <label for="phone">Mobile number</label>
-              <input id="phone" name="phone" [ngModel]="phone" (ngModelChange)="onPhone($event)" maxlength="10" inputmode="numeric" placeholder="e.g. 9876543210" autocomplete="tel" [class.input-error]="errors()['phone']" />
+              <input id="phone" name="phone" [ngModel]="phone" (ngModelChange)="onPhone($event)" maxlength="10" inputmode="numeric" placeholder="Enter your mobile number" autocomplete="tel" [class.input-error]="errors()['phone']" />
               <span class="field-error" role="alert" [style.display]="errors()['phone'] ? 'block' : 'none'">{{ errors()['phone'] }}</span>
             </div>
             <div class="auth-field">

@@ -4,7 +4,9 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cloud.gateway.route.RouteLocator;
@@ -21,6 +23,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -131,6 +134,42 @@ class GatewayRoutingTest {
     void unknownPathsAreNotFound() {
         client.get().uri("/api/unknown").exchange().expectStatus().isNotFound();
         client.get().uri("/").exchange().expectStatus().isNotFound();
+    }
+
+    @ParameterizedTest(name = "{0} {1} is forwarded to {2}")
+    @MethodSource("routedCalls")
+    void everyMethodAndPathReachesTheOwningService(String method, String path, String service) {
+        client.method(HttpMethod.valueOf(method)).uri(path).exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class).isEqualTo(service + ":" + method + ":" + path);
+    }
+
+    static Stream<Arguments> routedCalls() {
+        String[][] owners = {
+                {"/api/auth/", "auth"},
+                {"/api/users/", "auth"},
+                {"/api/finance/", "finance"},
+                {"/api/transactions/", "finance"},
+                {"/api/budgets/", "finance"},
+                {"/api/goals/", "finance"},
+                {"/api/savings/", "finance"},
+                {"/api/reports/", "finance"},
+                {"/api/affordability/", "finance"},
+                {"/api/admin/", "admin"},
+                {"/api/feedback/", "admin"},
+                {"/api/notifications/", "admin"}
+        };
+        String[] methods = {"GET", "POST", "PUT", "PATCH", "DELETE"};
+        String[] suffixes = {"a", "a/b", "item", "item/1", "left", "right", "end"};
+        Stream.Builder<Arguments> rows = Stream.builder();
+        for (String[] owner : owners) {
+            for (String method : methods) {
+                for (String suffix : suffixes) {
+                    rows.add(Arguments.of(method, owner[0] + suffix, owner[1]));
+                }
+            }
+        }
+        return rows.build();
     }
 
     @Test

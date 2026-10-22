@@ -130,12 +130,7 @@ export class DashboardComponent {
       destroyChart(canvas);
       return;
     }
-    const config = this.configFor(graph.id, stats, txs, savings, budgets, goals);
-    if (!config) {
-      destroyChart(canvas);
-      return;
-    }
-    mountChart(canvas, config);
+    mountChart(canvas, this.configFor(graph.id, stats, txs, savings, budgets, goals));
   }
 
   private configFor(
@@ -145,35 +140,29 @@ export class DashboardComponent {
     savings: Array<{ amount: number; date: string }>,
     budgets: Array<{ category: string; limit: number; spent?: number }>,
     goals: Array<{ title: string; saved: number; target: number }>,
-  ): ChartConfiguration | null {
+  ): ChartConfiguration {
     const colors = CHART_COLORS;
     if (id === 'expense') {
-      const series = expenseBreakdown(txs);
-      if (!series) return null;
+      const series = expenseBreakdown(txs)!;
       return { type: 'pie', data: { labels: series.labels, datasets: [{ data: series.data, backgroundColor: colors, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } };
     }
     if (id === 'income') {
-      const series = incomeExpenseSeries(stats);
-      if (!series) return null;
+      const series = incomeExpenseSeries(stats)!;
       return { type: 'bar', data: { labels: series.labels, datasets: [{ label: 'Amount (₹)', data: series.data, backgroundColor: [colors[0], colors[3]], borderRadius: 8 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } };
     }
     if (id === 'savings') {
-      const series = savingsTrend([...savings].reverse());
-      if (!series) return null;
+      const series = savingsTrend([...savings].reverse())!;
       return { type: 'line', data: { labels: series.labels.map((label) => formatDate(label)), datasets: [{ label: 'Recorded savings entries', data: series.data, borderColor: colors[0], backgroundColor: 'rgba(13,148,136,0.15)', fill: true, tension: 0.35 }] }, options: { responsive: true, maintainAspectRatio: false } };
     }
     if (id === 'budget') {
-      const series = budgetComparison(budgets);
-      if (!series) return null;
+      const series = budgetComparison(budgets)!;
       return { type: 'bar', data: { labels: series.labels, datasets: [{ label: 'Limit', data: series.limit, backgroundColor: colors[1], borderRadius: 6 }, { label: 'Spent', data: series.spent, backgroundColor: colors[2], borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } };
     }
     if (id === 'health') {
-      if (!stats) return null;
-      const score = Math.min(100, Math.max(0, num(stats.health)));
+      const score = Math.min(100, Math.max(0, num(stats!.health)));
       return { type: 'doughnut', data: { labels: ['Health score', 'Remaining to 100'], datasets: [{ data: [score, 100 - score], backgroundColor: [colors[5], '#e2e8f0'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } };
     }
-    const series = goalSeries(goals);
-    if (!series) return null;
+    const series = goalSeries(goals)!;
     return { type: 'bar', data: { labels: series.labels, datasets: [{ label: 'Saved', data: series.saved, backgroundColor: colors[0], borderRadius: 6 }, { label: 'Target', data: series.target, backgroundColor: colors[1], borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } };
   }
 }

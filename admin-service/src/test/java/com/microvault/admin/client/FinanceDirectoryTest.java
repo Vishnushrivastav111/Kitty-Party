@@ -111,6 +111,35 @@ class FinanceDirectoryTest {
     }
 
     @Test
+    void softDeleteAsksFinanceToRemoveTheTransaction() {
+        status = 204;
+        body = null;
+        UUID user = UUID.randomUUID();
+        UUID transaction = UUID.randomUUID();
+
+        directory.softDeleteTransaction(user, transaction);
+
+        assertEquals("/api/internal/transactions/" + transaction, seenPath.get());
+        assertEquals("internal-secret", seenToken.get());
+    }
+
+    @Test
+    void aTransactionSummaryRoundTripsEveryField() {
+        FinanceDirectory.TransactionSummary summary = new FinanceDirectory.TransactionSummary();
+        summary.setName("Tea");
+        summary.setCategory("Food");
+        summary.setType("expense");
+        summary.setAmount(new java.math.BigDecimal("10.00"));
+        summary.setDate("2026-10-01");
+
+        assertEquals("Tea", summary.getName());
+        assertEquals("Food", summary.getCategory());
+        assertEquals("expense", summary.getType());
+        assertEquals(0, new java.math.BigDecimal("10.00").compareTo(summary.getAmount()));
+        assertEquals("2026-10-01", summary.getDate());
+    }
+
+    @Test
     void aRejectedInternalTokenIsPropagated() {
         status = 401;
         body = "{}";

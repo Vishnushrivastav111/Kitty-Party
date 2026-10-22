@@ -1,0 +1,29 @@
+// Finance service. The agent needs JDK 17+ and Maven on PATH.
+pipeline {
+  agent any
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+  }
+  stages {
+    stage('Test') {
+      steps {
+        dir('finance-service') {
+          script {
+            if (isUnix()) {
+              sh 'mvn -B clean verify'
+            } else {
+              bat 'mvn -B clean verify'
+            }
+          }
+        }
+      }
+    }
+  }
+  post {
+    always {
+      junit allowEmptyResults: true, testResults: 'finance-service/target/surefire-reports/*.xml'
+      archiveArtifacts artifacts: 'finance-service/target/site/jacoco/**', allowEmptyArchive: true
+    }
+  }
+}
